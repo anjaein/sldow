@@ -1,0 +1,94 @@
+name: 🐛 버그 리포트
+description: 버그를 발견하셨나요? 자세히 알려주세요.
+title: '[Bug]: '
+labels: ['type: fix']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `type: fix` 라벨은 자동으로 추가됩니다.
+        선택한 우선순위에 따라 `priority:*` 라벨이 자동으로 추가됩니다.
+
+  # `scope:*`, `status:*` 라벨은 필요할 때 직접 추가합니다.
+
+  # - type: dropdown
+  #   id: assignee
+  #   attributes:
+  #     label: 담당자
+  #     description: 이 버그를 담당할 팀원을 선택해주세요.
+  #     options:
+  #       - 재인
+  #   validations:
+  #     required: true
+
+  # - type: dropdown
+  #   id: area
+  #   attributes:
+  #     label: 영향 범위
+  #     description: 버그가 발생한 영역을 선택해주세요.
+  #     options:
+  #       - apps/api
+  #       - apps/mobile
+  #       - packages/validators
+  #       - packages/utils
+  #       - packages/errors
+  #       - tooling/*
+  #       - multiple
+  #   validations:
+  #     required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 우선순위
+      description: 우선순위를 선택하면 해당 라벨이 자동으로 적용됩니다.
+      options:
+        - priority: low - 사소한 문제
+        - priority: medium - 불편하지만 사용 가능
+        - priority: high - 주요 기능에 영향
+        - priority: critical - 서비스 사용 불가
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 버그 설명
+      description: 어떤 문제가 발생했는지 설명해주세요.
+      placeholder: '예: 노트를 수정한 뒤 다시 열면 변경 내용이 사라짐'
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. '...'로 이동
+        2. '...'을 클릭
+        3. 오류 발생
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작
+      placeholder: '정상적으로 동작했다면 어떻게 되어야 하나요?'
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 환경 정보
+      placeholder: |
+        - OS: macOS / Windows / Linux
+        - 브라우저 및 버전: Chrome / Safari / Firefox
+        - SLDOW 버전: v0.0.0
+      render: markdown
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 에러 로그
+      placeholder: 에러 메시지나 스택 트레이스
+      render: shell

@@ -1,0 +1,96 @@
+name: ✨ 기능 요청
+description: 새로운 기능이나 개선 사항을 제안해주세요.
+title: '[Feature]: '
+labels: ['type: feat']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `type: feat` 라벨은 자동으로 추가됩니다.
+        선택한 우선순위에 따라 `priority:*` 라벨이 자동으로 추가됩니다.
+
+  # `scope:*`, `status:*` 라벨은 필요할 때 직접 추가합니다.
+
+  # - type: dropdown
+  #   id: assignee
+  #   attributes:
+  #     label: 담당자
+  #     description: 이 기능을 담당할 팀원을 선택해주세요.
+  #     options:
+  #       - 재인
+  #   validations:
+  #     required: true
+
+  # - type: dropdown
+  #   id: area
+  #   attributes:
+  #     label: 영향 범위
+  #     description: 이 기능이 적용될 영역을 선택해주세요.
+  #     options:
+  #       - apps/api
+  #       - apps/mobile
+  #       - packages/validators
+  #       - packages/utils
+  #       - packages/errors
+  #       - tooling/*
+  #       - multiple
+  #   validations:
+  #     required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: 우선순위를 선택하면 해당 라벨이 자동으로 적용됩니다.
+      options:
+        - priority: low - 있으면 좋음
+        - priority: medium - 사용성 개선
+        - priority: high - 핵심 기능
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: 예상 작업량
+      description: 대략적인 구현 규모를 선택해주세요.
+      options:
+        - XS (1시간 이내)
+        - S (반나절)
+        - M (1일)
+        - L (2-3일)
+        - XL (1주 이상)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제 상황
+      description: 이 기능으로 해결하고자 하는 문제가 무엇인가요?
+      placeholder: '예: 현재 사용자가 프로필을 수정할 수 없어서 불편합니다.'
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 제안하는 해결책
+      placeholder: |
+        예: 프로필 화면에서 다음 기능 추가
+        - 프로필 사진 변경
+        - 닉네임 수정
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 고려한 대안
+      placeholder: '다른 해결 방법이 있다면 작성해주세요.'
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 참고 자료
+      placeholder: '목업, 레퍼런스 링크, 관련 문서 등'

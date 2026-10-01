@@ -1,0 +1,44 @@
+'api':
+  - changed-files:
+      - any-glob-to-any-file: 'src/api/**/*'
+'component':
+  - changed-files:
+      - any-glob-to-any-file: 'src/components/**/*'
+'page':
+  - changed-files:
+      - any-glob-to-any-file: 'src/pages/**/*'
+'style':
+  - changed-files:
+      - any-glob-to-any-file: 'src/styles/**/*'
+      - any-glob-to-any-file: '**/*.css'
+'types':
+  - changed-files:
+      - any-glob-to-any-file: 'src/types/**/*'
+'store':
+  - changed-files:
+      - any-glob-to-any-file: 'src/stores/**/*'
+'hooks':
+  - changed-files:
+      - any-glob-to-any-file: 'src/hooks/**/*'
+'mocks':
+  - changed-files:
+      - any-glob-to-any-file: 'src/mocks/**/*'
+'documentation':
+  - changed-files:
+      - any-glob-to-any-file: '**/*.md'
+      - any-glob-to-any-file: 'docs/**/*'
+'config':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.json'
+          - '*.js'
+          - '*.ts'
+          - 'tsconfig*.json'
+          - 'vite.config.ts'
+          - 'eslint.config.js'
+          - '.github/**/*'
+'dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'pnpm-lock.yaml'
