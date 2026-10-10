@@ -1,1 +1,41 @@
 @import 'tailwindcss';
+@import './tokens.css';
+
+/* Tailwind의 초기화를 해제하여 브라우저 기본 선택 상자를 사용한다. */
+.native-select {
+  all: revert;
+}
+
+.document-layout {
+  min-height: 100vh;
+  background: var(--color-document-background);
+  color: var(--color-document-text);
+  font-family: var(--font-document);
+}
+
+.document-content {
+  box-sizing: content-box;
+  max-width: var(--document-width);
+  margin-inline: auto;
+  padding: var(--document-padding-top) var(--document-padding-x)
+    var(--document-padding-bottom);
+}
+
+.document-title {
+  margin-bottom: var(--document-title-gap);
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-title);
+  line-height: var(--line-height-title);
+  letter-spacing: var(--letter-spacing-title);
+  overflow-wrap: anywhere;
+}
+
+.document-body {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  overflow-wrap: anywhere;
+}
+
+.document-body > * + * {
+  margin-top: var(--document-block-gap);
+}
