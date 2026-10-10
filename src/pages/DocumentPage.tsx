@@ -1,5 +1,7 @@
 import DocumentLayout from '../components/layout/DocumentLayout';
 import DocumentRelations from '../components/DocumentRelations';
+import DocumentEditor from '../components/DocumentEditor';
+import DocumentTitle from '../components/DocumentTitle';
 import { useLoaderData } from 'react-router';
 import { mockDocuments } from '../utils/mockDocuments';
 import { getDocument } from '../utils/getDocument';
@@ -10,7 +12,7 @@ export default function DocumentPage() {
 
   return (
     <DocumentLayout
-      title={title}
+      title={<DocumentTitle key={id} title={title} />}
       relations={
         <DocumentRelations
           linkedDocumentIds={linkedDocumentIds}
@@ -18,9 +20,7 @@ export default function DocumentPage() {
         />
       }
     >
-      {paragraphs.map((paragraph, index) => (
-        <p key={`${id}-${index}`}>{paragraph}</p>
-      ))}
+      <DocumentEditor key={id} paragraphs={paragraphs} />
     </DocumentLayout>
   );
 }
