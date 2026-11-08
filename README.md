@@ -8,9 +8,15 @@
 src/
 ├── api/          # 서버 API 요청 (백엔드 연결 시 사용)
 ├── assets/       # 이미지·아이콘·폰트 등 앱 정적 자산
-├── components/   # UI 컴포넌트 (필요에 따라 기능별 하위 폴더)
+├── components/   # 여러 기능에서 함께 쓰는 UI 컴포넌트
+├── features/     # 기능 단위로 묶은 코드 (기능 안에서만 쓰는 컴포넌트·훅·저장소·타입)
+│   └── document/
+│       ├── components/
+│       ├── hooks/
+│       ├── storage.ts  # 로컬 폴더에 문서 파일 저장·조회
+│       └── types.ts
 ├── pages/        # 라우팅에 연결되는 페이지 화면
-├── hooks/        # 커스텀 React 훅
+├── hooks/        # 여러 기능에서 함께 쓰는 커스텀 React 훅
 ├── mocks/        # 개발·검증용 가상 데이터와 응답
 ├── stores/       # 공유 상태와 상태 관리 로직
 ├── styles/       # Tailwind 진입점 및 전역 스타일
