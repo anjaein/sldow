@@ -40,6 +40,7 @@
     "@mantine/core": "^9.7.1",
     "@mantine/hooks": "^9.7.1",
     "@mantine/utils": "^6.0.22",
+    "motion": "^14.8.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0"
