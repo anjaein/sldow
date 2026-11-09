@@ -189,6 +189,11 @@ export default function DesignCanvas({
     if (!finished.moved && finished.kind !== 'create') return;
 
     const { raw, target } = getDragScenes(scene, finished);
+    // 격자에 붙으면서 양 끝이 겹치는 선은 보이지 않으므로 반영하지 않는다.
+    if (finished.kind === 'line-create' || finished.kind === 'line-end') {
+      const line = target.connectors.find(({ id }) => id === finished.id);
+      if (line?.from.x === line?.to.x && line?.from.y === line?.to.y) return;
+    }
     onChange(target);
     if (finished.moved) settleFrom(raw);
     if (creating) {
