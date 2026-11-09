@@ -321,3 +321,27 @@
   fill: #228be6;
   cursor: move;
 }
+
+@media (max-width: 600px) {
+  .design-toolbar {
+    left: var(--space-3);
+    max-width: calc(100% - 6rem);
+    transform: none;
+  }
+
+  .design-toolbar-group {
+    flex-wrap: wrap;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .design-format-bar {
+    flex-wrap: wrap;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .design-swatch {
+    flex-shrink: 0;
+  }
+}

@@ -43,6 +43,43 @@ export default function TextEditor({ text, onFinish }: TextEditorProps) {
   // 글자가 없거나 서식 없는 글자가 생겼을 때 쓸 서식
   const baseRef = useRef<RunStyle>(getLastStyle(text.runs));
   const composing = useRef(false);
+  // 서식 변경은 DOM을 다시 써서 브라우저의 undo 기록과 섞을 수 없다.
+  // 입력과 서식을 같은 기록으로 되돌리고, 조합 중인 DOM은 건드리지 않는다.
+  const history = useRef<{ runs: TextRun[]; style: RunStyle }[]>([]);
+  const historyIndex = useRef(-1);
+
+  function remember() {
+    const root = rootRef.current;
+    if (!root) return;
+    const snapshot = {
+      runs: readRuns(root, baseRef.current),
+      style: { ...baseRef.current },
+    };
+    if (
+      JSON.stringify(history.current[historyIndex.current]) ===
+      JSON.stringify(snapshot)
+    )
+      return;
+    history.current = [
+      ...history.current.slice(0, historyIndex.current + 1),
+      snapshot,
+    ].slice(-100);
+    historyIndex.current = history.current.length - 1;
+  }
+
+  function restoreHistory(direction: number) {
+    const root = rootRef.current;
+    const index = historyIndex.current + direction;
+    const snapshot = history.current[index];
+    if (!root || !snapshot) return;
+    historyIndex.current = index;
+    baseRef.current = { ...snapshot.style };
+    writeRuns(root, snapshot.runs, snapshot.style);
+    const end = getRunsLength(snapshot.runs);
+    setSelectionOffsets(root, end, end);
+    setActive(getLastStyle(snapshot.runs));
+    setHeight(root.offsetHeight);
+  }
   const [active, setActive] = useState<RunStyle>(() => getLastStyle(text.runs));
   const [height, setHeight] = useState(() =>
     Math.max(
@@ -54,6 +91,7 @@ export default function TextEditor({ text, onFinish }: TextEditorProps) {
   useLayoutEffect(() => {
     const root = rootRef.current!;
     writeRuns(root, text.runs, baseRef.current);
+    remember();
     root.focus();
     const end = getRunsLength(text.runs);
     setSelectionOffsets(root, end, end);
@@ -97,6 +135,7 @@ export default function TextEditor({ text, onFinish }: TextEditorProps) {
     writeRuns(root, result.runs, baseRef.current);
     setSelectionOffsets(root, result.start, result.end);
     setHeight(root.offsetHeight);
+    remember();
   }
 
   function applyFormat(patch: Partial<RunStyle>) {
@@ -150,8 +189,12 @@ export default function TextEditor({ text, onFinish }: TextEditorProps) {
           }}
           onCompositionEnd={() => {
             composing.current = false;
+            remember();
           }}
-          onInput={(event) => setHeight(event.currentTarget.offsetHeight)}
+          onInput={(event) => {
+            setHeight(event.currentTarget.offsetHeight);
+            if (!composing.current) remember();
+          }}
           onBlur={(event) =>
             onFinish(readRuns(event.currentTarget, baseRef.current))
           }
@@ -166,7 +209,10 @@ export default function TextEditor({ text, onFinish }: TextEditorProps) {
             // 한글 조합을 끝내는 Enter·Esc는 입력 종료로 보지 않는다.
             if (event.nativeEvent.isComposing || composing.current) return;
             const modified = event.metaKey || event.ctrlKey;
-            if (event.key === 'Escape') {
+            if (modified && (event.code === 'KeyZ' || event.code === 'KeyY')) {
+              event.preventDefault();
+              restoreHistory(event.code === 'KeyY' || event.shiftKey ? 1 : -1);
+            } else if (event.key === 'Escape') {
               event.preventDefault();
               event.currentTarget.blur();
             } else if (event.key === 'Enter') {
