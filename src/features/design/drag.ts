@@ -68,10 +68,21 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
         ),
       };
     case 'create': {
-      const addShape = (rect: Rect) => ({
-        ...scene,
-        shapes: [...scene.shapes, { ...createShape(rect), id: drag.id }],
-      });
+      // 옛 동작대로 새 도형은 기존 선 아래에 놓는다.
+      const addShape = (rect: Rect) => {
+        const firstLine = scene.elements.findIndex(
+          (element) => element.kind === 'connector',
+        );
+        const at = firstLine === -1 ? scene.elements.length : firstLine;
+        return {
+          ...scene,
+          elements: [
+            ...scene.elements.slice(0, at),
+            { ...createShape(rect), id: drag.id },
+            ...scene.elements.slice(at),
+          ],
+        };
+      };
       // 끌지 않고 누르기만 했으면 그 자리에 기본 크기로 만든다.
       if (!drag.moved) {
         const shape = addShape({
@@ -123,8 +134,8 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
     case 'line-create': {
       const addConnector = (from: Point, to: Point) => ({
         ...scene,
-        connectors: [
-          ...scene.connectors,
+        elements: [
+          ...scene.elements,
           { ...createConnector(from, to), id: drag.id },
         ],
       });

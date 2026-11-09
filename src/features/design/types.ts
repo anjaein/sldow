@@ -14,6 +14,7 @@ export interface ShapeText {
 
 export interface Shape {
   id: string;
+  kind: 'shape';
   type: 'squircle';
   x: number;
   y: number;
@@ -27,6 +28,7 @@ export interface Shape {
 // 선은 도형과 연결되지 않고 두 끝점만 가진다.
 export interface Connector {
   id: string;
+  kind: 'connector';
   path: 'straight' | 'curve';
   dashed: boolean;
   arrowEnd: boolean;
@@ -34,12 +36,15 @@ export interface Connector {
   to: Point;
 }
 
+export type SceneElement = Shape | Connector;
+
 export interface Scene {
-  shapes: Shape[];
-  connectors: Connector[];
+  version: 2;
+  // 배열 순서가 그리는 순서다. 뒤에 있을수록 위에 그린다.
+  elements: SceneElement[];
 }
 
-export const EMPTY_SCENE: Scene = { shapes: [], connectors: [] };
+export const EMPTY_SCENE: Scene = { version: 2, elements: [] };
 
 // 도형에 칠할 수 있는 색. 검은 선과 글자가 잘 보이도록 옅은 색만 쓴다.
 export const PALETTE = [
@@ -57,6 +62,7 @@ export const PALETTE = [
 export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
   return {
     id: crypto.randomUUID(),
+    kind: 'shape',
     type: 'squircle',
     ...rect,
     fill: null,
@@ -67,6 +73,7 @@ export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
 export function createConnector(from: Point, to: Point): Connector {
   return {
     id: crypto.randomUUID(),
+    kind: 'connector',
     path: 'straight',
     dashed: false,
     arrowEnd: true,
@@ -75,10 +82,21 @@ export function createConnector(from: Point, to: Point): Connector {
   };
 }
 
+export function findElement<K extends SceneElement['kind']>(
+  scene: Scene,
+  kind: K,
+  id: string | null | undefined,
+) {
+  return scene.elements.find(
+    (element): element is Extract<SceneElement, { kind: K }> =>
+      element.kind === kind && element.id === id,
+  );
+}
+
 export function removeElement(scene: Scene, id: string): Scene {
   return {
-    shapes: scene.shapes.filter((shape) => shape.id !== id),
-    connectors: scene.connectors.filter((connector) => connector.id !== id),
+    ...scene,
+    elements: scene.elements.filter((element) => element.id !== id),
   };
 }
 
@@ -89,8 +107,10 @@ export function updateShape(
 ): Scene {
   return {
     ...scene,
-    shapes: scene.shapes.map((shape) =>
-      shape.id === id ? { ...shape, ...patch } : shape,
+    elements: scene.elements.map((element) =>
+      element.kind === 'shape' && element.id === id
+        ? { ...element, ...patch }
+        : element,
     ),
   };
 }
@@ -99,14 +119,35 @@ export function serializeScene(scene: Scene): string {
   return JSON.stringify(scene);
 }
 
+// version이 없던 옛 형식. 선을 항상 도형 위에 그렸다.
+interface LegacyScene {
+  shapes?: unknown;
+  connectors?: unknown;
+}
+
+// 도형 다음에 선을 놓아 옛 문서가 같은 겹침 순서로 보이게 한다.
+function fromLegacyScene({ shapes, connectors }: LegacyScene): SceneElement[] {
+  const tag = (items: unknown, kind: SceneElement['kind']) =>
+    Array.isArray(items)
+      ? items.map((item) => ({ ...item, kind }) as SceneElement)
+      : [];
+  return [...tag(shapes, 'shape'), ...tag(connectors, 'connector')];
+}
+
+function isSceneElement(value: unknown): value is SceneElement {
+  if (typeof value !== 'object' || value === null) return false;
+  const { kind } = value as Partial<SceneElement>;
+  return kind === 'shape' || kind === 'connector';
+}
+
 // 저장된 문자열이 깨져 있어도 블록이 망가지지 않게 빈 장면으로 연다.
 export function parseScene(value: string): Scene {
   try {
-    const parsed = JSON.parse(value) as Partial<Scene>;
-    return {
-      shapes: Array.isArray(parsed.shapes) ? parsed.shapes : [],
-      connectors: Array.isArray(parsed.connectors) ? parsed.connectors : [],
-    };
+    const parsed = JSON.parse(value) as Partial<Scene> & LegacyScene;
+    const elements = Array.isArray(parsed.elements)
+      ? parsed.elements
+      : fromLegacyScene(parsed);
+    return { version: 2, elements: elements.filter(isSceneElement) };
   } catch {
     return EMPTY_SCENE;
   }
@@ -123,13 +164,14 @@ export interface Bounds {
 export function getSceneBounds(scene: Scene): Bounds | null {
   const xs: number[] = [];
   const ys: number[] = [];
-  for (const shape of scene.shapes) {
-    xs.push(shape.x, shape.x + shape.w);
-    ys.push(shape.y, shape.y + shape.h);
-  }
-  for (const connector of scene.connectors) {
-    xs.push(connector.from.x, connector.to.x);
-    ys.push(connector.from.y, connector.to.y);
+  for (const element of scene.elements) {
+    if (element.kind === 'shape') {
+      xs.push(element.x, element.x + element.w);
+      ys.push(element.y, element.y + element.h);
+    } else {
+      xs.push(element.from.x, element.to.x);
+      ys.push(element.from.y, element.to.y);
+    }
   }
   if (xs.length === 0) return null;
   const x = Math.min(...xs);
@@ -144,8 +186,10 @@ export function updateConnector(
 ): Scene {
   return {
     ...scene,
-    connectors: scene.connectors.map((connector) =>
-      connector.id === id ? { ...connector, ...patch } : connector,
+    elements: scene.elements.map((element) =>
+      element.kind === 'connector' && element.id === id
+        ? { ...element, ...patch }
+        : element,
     ),
   };
 }

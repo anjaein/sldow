@@ -3,7 +3,7 @@ import type { MouseEvent, PointerEvent } from 'react';
 import { animate } from 'motion';
 import type { AnimationPlaybackControls } from 'motion';
 import type { Connector, Point, Scene } from '../types';
-import { updateShape } from '../types';
+import { findElement, updateShape } from '../types';
 import type { Corner, Rect } from '../geometry';
 import {
   CORNERS,
@@ -102,13 +102,11 @@ export default function DesignCanvas({
       ?.dataset.connectorId;
     const shapeId =
       target.closest<SVGElement>('[data-shape-id]')?.dataset.shapeId;
-    const shape = scene.shapes.find((shape) => shape.id === shapeId);
-    const connector = scene.connectors.find(
-      (connector) => connector.id === connectorId,
-    );
+    const shape = findElement(scene, 'shape', shapeId);
+    const connector = findElement(scene, 'connector', connectorId);
 
     if (corner && selectedId) {
-      const selected = scene.shapes.find((shape) => shape.id === selectedId)!;
+      const selected = findElement(scene, 'shape', selectedId)!;
       const anchor = getCornerPoint(selected, getOppositeCorner(corner));
       setDrag({ ...base, kind: 'resize', id: selectedId, anchor });
     } else if (end && selectedId) {
@@ -164,7 +162,7 @@ export default function DesignCanvas({
 
   function commitText(id: string, content: string) {
     setEditingId(null);
-    const shape = scene.shapes.find((shape) => shape.id === id);
+    const shape = findElement(scene, 'shape', id);
     if (!shape || shape.text.content === content) return;
     onChange(updateShape(scene, id, { text: { ...shape.text, content } }));
   }
@@ -191,7 +189,7 @@ export default function DesignCanvas({
     const { raw, target } = getDragScenes(scene, finished);
     // 격자에 붙으면서 양 끝이 겹치는 선은 보이지 않으므로 반영하지 않는다.
     if (finished.kind === 'line-create' || finished.kind === 'line-end') {
-      const line = target.connectors.find(({ id }) => id === finished.id);
+      const line = findElement(target, 'connector', finished.id);
       if (line?.from.x === line?.to.x && line?.from.y === line?.to.y) return;
     }
     onChange(target);
@@ -211,21 +209,15 @@ export default function DesignCanvas({
   }
 
   // 입력하는 동안에는 입력칸만 보이게 도형의 글자를 숨긴다.
-  const editingShape = displayScene.shapes.find(
-    (shape) => shape.id === editingId,
-  );
+  const editingShape = findElement(displayScene, 'shape', editingId);
   if (editingShape) {
     displayScene = updateShape(displayScene, editingShape.id, {
       text: { ...editingShape.text, content: '' },
     });
   }
 
-  const selectedShape = displayScene.shapes.find(
-    (shape) => shape.id === selectedId,
-  );
-  const selectedConnector = displayScene.connectors.find(
-    (connector) => connector.id === selectedId,
-  );
+  const selectedShape = findElement(displayScene, 'shape', selectedId);
+  const selectedConnector = findElement(displayScene, 'connector', selectedId);
 
   return (
     <svg
@@ -258,16 +250,7 @@ export default function DesignCanvas({
         className="design-canvas-grid"
         data-dragging={drag?.moved || undefined}
       />
-      <SceneView scene={displayScene} />
-      {/* 얇은 선도 쉽게 누를 수 있게 투명한 굵은 선을 위에 깐다. */}
-      {displayScene.connectors.map((connector) => (
-        <path
-          key={connector.id}
-          className="design-connector-hit"
-          data-connector-id={connector.id}
-          d={getConnectorPath(connector)}
-        />
-      ))}
+      <SceneView scene={displayScene} interactive />
       {selectedShape && <ShapeSelection rect={selectedShape} />}
       {selectedConnector && (
         <ConnectorSelection connector={selectedConnector} />
