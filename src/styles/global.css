@@ -300,3 +300,8 @@
 .design-width-handle {
   cursor: ew-resize;
 }
+
+.design-control-handle {
+  fill: #228be6;
+  cursor: move;
+}

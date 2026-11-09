@@ -1,5 +1,6 @@
 import type { Point, Scene, SceneElement, Shape, TextElement } from './types';
 import { measureTextHeight } from './measure';
+import { getConnectorExtent } from './connector';
 
 export const GRID_SIZE = 20;
 // 도형이 이보다 작아지지 않게 한다.
@@ -88,8 +89,10 @@ export function getSceneBounds(scene: Scene): Rect | null {
   const ys: number[] = [];
   for (const element of scene.elements) {
     if (element.kind === 'connector') {
-      xs.push(element.from.x, element.to.x);
-      ys.push(element.from.y, element.to.y);
+      for (const point of getConnectorExtent(element)) {
+        xs.push(point.x);
+        ys.push(point.y);
+      }
     } else {
       const rect = element.kind === 'text' ? getTextRect(element) : element;
       xs.push(rect.x, rect.x + rect.w);
@@ -128,6 +131,7 @@ export function translateElement(
     ...element,
     from: addPoint(element.from, offset),
     to: addPoint(element.to, offset),
+    control: element.control && addPoint(element.control, offset),
   };
 }
 
@@ -170,6 +174,10 @@ function mixElement(
       ...element,
       from: mixPoint(start.from, element.from, t),
       to: mixPoint(start.to, element.to, t),
+      control:
+        start.control && element.control
+          ? mixPoint(start.control, element.control, t)
+          : element.control,
     };
   }
   return element;

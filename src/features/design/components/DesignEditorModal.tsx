@@ -3,9 +3,10 @@ import { MantineProvider, Modal } from '@mantine/core';
 import '@mantine/core/styles/ModalBase.layer.css';
 import '@mantine/core/styles/Modal.layer.css';
 import '@mantine/core/styles/Overlay.layer.css';
-import type { Scene, Shape, StrokeStyle } from '../types';
+import type { ArrowHead, Connector, Scene, Shape, StrokeStyle } from '../types';
 import {
   PALETTE,
+  STROKE_WIDTHS,
   findElement,
   removeElement,
   reorderElement,
@@ -18,6 +19,17 @@ import DesignCanvas from './DesignCanvas';
 import InkSwatches from './InkSwatches';
 import ShapeTitleInput from './ShapeTitleInput';
 import ToolButton from './ToolButton';
+
+const CONNECTOR_PATHS: { path: Connector['path']; label: string }[] = [
+  { path: 'straight', label: '직선' },
+  { path: 'curve', label: '곡선' },
+  { path: 'elbow', label: '꺾은선' },
+];
+
+const ARROW_HEADS: { head: ArrowHead; label: string }[] = [
+  { head: 'filled', label: '채운 촉' },
+  { head: 'hollow', label: '빈 촉' },
+];
 
 const SHAPE_TYPES: { type: Shape['type']; label: string }[] = [
   { type: 'squircle', label: '둥근 박스' },
@@ -122,28 +134,23 @@ export default function DesignEditorModal({
           />
           {selectedConnector && (
             <div className="design-toolbar-group" aria-label="선 모양">
-              <ToolButton
-                label="직선"
-                active={selectedConnector.path === 'straight'}
-                onClick={() =>
-                  setDraft(
-                    updateConnector(draft, selectedConnector.id, {
-                      path: 'straight',
-                    }),
-                  )
-                }
-              />
-              <ToolButton
-                label="곡선"
-                active={selectedConnector.path === 'curve'}
-                onClick={() =>
-                  setDraft(
-                    updateConnector(draft, selectedConnector.id, {
-                      path: 'curve',
-                    }),
-                  )
-                }
-              />
+              {CONNECTOR_PATHS.map(({ path, label }) => (
+                <ToolButton
+                  key={path}
+                  label={label}
+                  active={selectedConnector.path === path}
+                  onClick={() =>
+                    // 휨 위치는 모양마다 뜻이 달라서 바꿀 때 지운다.
+                    // 곡선을 다시 누르면 처음의 S자 곡선으로 돌아간다.
+                    setDraft(
+                      updateConnector(draft, selectedConnector.id, {
+                        path,
+                        control: undefined,
+                      }),
+                    )
+                  }
+                />
+              ))}
               <ToolButton
                 label="점선"
                 active={selectedConnector.dashed}
@@ -167,6 +174,53 @@ export default function DesignEditorModal({
                 }
               />
             </div>
+          )}
+          {selectedConnector && (
+            <>
+              <InkSwatches
+                label="선 색"
+                value={selectedConnector.color}
+                onPick={(color) =>
+                  setDraft(
+                    updateConnector(draft, selectedConnector.id, { color }),
+                  )
+                }
+              />
+              <div className="design-toolbar-group" aria-label="선 두께">
+                {STROKE_WIDTHS.map(({ width, label }) => (
+                  <ToolButton
+                    key={width}
+                    label={label}
+                    active={selectedConnector.strokeWidth === width}
+                    onClick={() =>
+                      setDraft(
+                        updateConnector(draft, selectedConnector.id, {
+                          strokeWidth: width,
+                        }),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+              {selectedConnector.arrowEnd && (
+                <div className="design-toolbar-group" aria-label="화살촉 모양">
+                  {ARROW_HEADS.map(({ head, label }) => (
+                    <ToolButton
+                      key={head}
+                      label={label}
+                      active={selectedConnector.arrowHead === head}
+                      onClick={() =>
+                        setDraft(
+                          updateConnector(draft, selectedConnector.id, {
+                            arrowHead: head,
+                          }),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
           {selected && (
             <div className="design-toolbar-group" aria-label="도형 모양">
