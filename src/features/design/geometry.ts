@@ -1,4 +1,4 @@
-import type { Point, Scene } from './types';
+import type { Point, Scene, SceneElement } from './types';
 
 export const GRID_SIZE = 20;
 // 도형이 이보다 작아지지 않게 한다.
@@ -70,40 +70,44 @@ function mixPoint(from: Point, to: Point, t: number): Point {
   return { x: mix(from.x, to.x, t), y: mix(from.y, to.y, t) };
 }
 
+function mixElement(
+  start: SceneElement,
+  element: SceneElement,
+  t: number,
+): SceneElement {
+  if (start === element || start.id !== element.id) return element;
+  if (start.kind === 'shape' && element.kind === 'shape') {
+    return {
+      ...element,
+      x: mix(start.x, element.x, t),
+      y: mix(start.y, element.y, t),
+      w: mix(start.w, element.w, t),
+      h: mix(start.h, element.h, t),
+      text: {
+        ...element.text,
+        dx: mix(start.text.dx, element.text.dx, t),
+        dy: mix(start.text.dy, element.text.dy, t),
+      },
+    };
+  }
+  if (start.kind === 'connector' && element.kind === 'connector') {
+    return {
+      ...element,
+      from: mixPoint(start.from, element.from, t),
+      to: mixPoint(start.to, element.to, t),
+    };
+  }
+  return element;
+}
+
 // t가 0이면 from, 1이면 to. 스프링이 1을 넘어가면 살짝 지나쳤다 돌아온다.
 // 두 장면은 같은 순서로 같은 요소를 가져야 하며, 바뀐 요소만 위치를 섞는다.
 export function mixScene(from: Scene, to: Scene, t: number): Scene {
-  if (
-    from.shapes.length !== to.shapes.length ||
-    from.connectors.length !== to.connectors.length
-  ) {
-    return to;
-  }
+  if (from.elements.length !== to.elements.length) return to;
   return {
-    shapes: to.shapes.map((shape, index) => {
-      const start = from.shapes[index];
-      if (start === shape) return shape;
-      return {
-        ...shape,
-        x: mix(start.x, shape.x, t),
-        y: mix(start.y, shape.y, t),
-        w: mix(start.w, shape.w, t),
-        h: mix(start.h, shape.h, t),
-        text: {
-          ...shape.text,
-          dx: mix(start.text.dx, shape.text.dx, t),
-          dy: mix(start.text.dy, shape.text.dy, t),
-        },
-      };
-    }),
-    connectors: to.connectors.map((connector, index) => {
-      const start = from.connectors[index];
-      if (start === connector) return connector;
-      return {
-        ...connector,
-        from: mixPoint(start.from, connector.from, t),
-        to: mixPoint(start.to, connector.to, t),
-      };
-    }),
+    ...to,
+    elements: to.elements.map((element, index) =>
+      mixElement(from.elements[index], element, t),
+    ),
   };
 }

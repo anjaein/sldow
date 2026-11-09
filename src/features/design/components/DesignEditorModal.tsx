@@ -4,7 +4,13 @@ import '@mantine/core/styles/ModalBase.layer.css';
 import '@mantine/core/styles/Modal.layer.css';
 import '@mantine/core/styles/Overlay.layer.css';
 import type { Scene } from '../types';
-import { PALETTE, removeElement, updateConnector, updateShape } from '../types';
+import {
+  PALETTE,
+  findElement,
+  removeElement,
+  updateConnector,
+  updateShape,
+} from '../types';
 import { useSceneHistory } from '../hooks/useSceneHistory';
 import type { Tool } from './DesignCanvas';
 import DesignCanvas from './DesignCanvas';
@@ -23,10 +29,8 @@ export default function DesignEditorModal({
   const { scene: draft, commit: setDraft, undo, redo } = useSceneHistory(scene);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('select');
-  const selected = draft.shapes.find((shape) => shape.id === selectedId);
-  const selectedConnector = draft.connectors.find(
-    (connector) => connector.id === selectedId,
-  );
+  const selected = findElement(draft, 'shape', selectedId);
+  const selectedConnector = findElement(draft, 'connector', selectedId);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
