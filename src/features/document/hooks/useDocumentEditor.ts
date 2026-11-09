@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
+import { BlockNoteSchema } from '@blocknote/core';
 import { ko } from '@blocknote/core/locales';
 import { useCreateBlockNote } from '@blocknote/react';
 import type { DocumentPreview } from '../types';
 import { saveDocument } from '../storage';
 import { useAutoSave } from '../../../hooks/useAutoSave';
 import { useSaveShortcut } from '../../../hooks/useSaveShortcut';
+import { designBlock } from '../../design/designBlock';
+
+// 기본 블록에 디자인 블록을 더한 문서 스키마
+export const schema = BlockNoteSchema.create().extend({
+  blockSpecs: { design: designBlock() },
+});
 
 export function useDocumentEditor(document: DocumentPreview) {
   const editor = useCreateBlockNote({
+    schema,
     dictionary: ko,
     domAttributes: { editor: { style: 'padding-inline: 0;' } },
     // 빈 배열이면 undefined로 넘겨 에디터의 기본 빈 블록을 사용한다.
