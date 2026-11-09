@@ -1,4 +1,4 @@
-import type { Point, Scene, SceneElement } from './types';
+import type { Point, Scene, SceneElement, Shape } from './types';
 
 export const GRID_SIZE = 20;
 // 도형이 이보다 작아지지 않게 한다.
@@ -61,6 +61,46 @@ export function clampTextOffset(
   return {
     dx: Math.min(Math.max(dx, -w / 2), w / 2),
     dy: Math.min(Math.max(dy, -h / 2), h / 2),
+  };
+}
+
+function isPointInside({ x, y }: Point, rect: Rect): boolean {
+  return (
+    x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h
+  );
+}
+
+function isRectInside(inner: Rect, outer: Rect): boolean {
+  return (
+    isPointInside(inner, outer) &&
+    isPointInside({ x: inner.x + inner.w, y: inner.y + inner.h }, outer)
+  );
+}
+
+// 박스를 옮길 때 같이 움직일, 박스 안에 완전히 들어 있는 요소들.
+// 크기까지 같은 도형은 빼서, 같은 자리에 겹쳐 그린 두 도형을 떼어 놓을 수 있게 한다.
+export function getContainedElements(scene: Scene, box: Shape): SceneElement[] {
+  return scene.elements.filter((element) => {
+    if (element.id === box.id) return false;
+    if (element.kind === 'shape') {
+      return (
+        isRectInside(element, box) && element.w * element.h < box.w * box.h
+      );
+    }
+    return isPointInside(element.from, box) && isPointInside(element.to, box);
+  });
+}
+
+export function translateElement(
+  element: SceneElement,
+  offset: Point,
+): SceneElement {
+  if (element.kind === 'shape')
+    return { ...element, ...addPoint(element, offset) };
+  return {
+    ...element,
+    from: addPoint(element.from, offset),
+    to: addPoint(element.to, offset),
   };
 }
 

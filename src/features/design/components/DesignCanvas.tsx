@@ -8,6 +8,7 @@ import type { Corner, Rect } from '../geometry';
 import {
   CORNERS,
   GRID_SIZE,
+  getContainedElements,
   getCornerPoint,
   getOppositeCorner,
   mixScene,
@@ -88,6 +89,10 @@ export default function DesignCanvas({
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
     if (event.button !== 0) return;
+    // 입력 중이던 툴바의 제목을, 선택이 바뀌어 입력칸이 사라지기 전에 먼저 반영한다.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     settleAnimation.current?.stop();
     setSettle(null);
 
@@ -141,7 +146,13 @@ export default function DesignCanvas({
       });
     } else if (shape) {
       onSelect(shape.id);
-      setDrag({ ...base, kind: 'move', id: shape.id, from: shape });
+      setDrag({
+        ...base,
+        kind: 'move',
+        id: shape.id,
+        from: shape,
+        carried: [],
+      });
     } else {
       onSelect(null);
       return;
@@ -174,7 +185,13 @@ export default function DesignCanvas({
       drag.moved ||
       Math.hypot(point.x - drag.start.x, point.y - drag.start.y) >
         DRAG_THRESHOLD;
-    setDrag({ ...drag, point, moved, snap: !event.altKey });
+    const next = { ...drag, point, moved, snap: !event.altKey };
+    // 실제로 끌기 시작하는 순간의 장면으로 판단한다. 누르는 순간에는 방금 끝낸 입력이 아직 장면에 없다.
+    if (next.kind === 'move' && moved && !drag.moved) {
+      const box = findElement(scene, 'shape', next.id);
+      next.carried = box ? getContainedElements(scene, box) : [];
+    }
+    setDrag(next);
   }
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {

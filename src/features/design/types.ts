@@ -12,16 +12,22 @@ export interface ShapeText {
   dy: number;
 }
 
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
+
 export interface Shape {
   id: string;
   kind: 'shape';
-  type: 'squircle';
+  type: 'squircle' | 'rect';
   x: number;
   y: number;
   w: number;
   h: number;
   // null이면 흰 바탕
   fill: string | null;
+  stroke: string;
+  strokeStyle: StrokeStyle;
+  // 상단 테두리에 걸치는 제목. 빈 문자열이면 없다.
+  title: string;
   text: ShapeText;
 }
 
@@ -59,6 +65,10 @@ export const PALETTE = [
   '#e9ecef',
 ];
 
+// 필기용 색. 글자·테두리·선에 쓴다.
+export const INK_BLACK = '#111111';
+export const INK = [INK_BLACK, '#e03131', '#1971c2', '#868e96'];
+
 export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
   return {
     id: crypto.randomUUID(),
@@ -66,6 +76,9 @@ export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
     type: 'squircle',
     ...rect,
     fill: null,
+    stroke: INK_BLACK,
+    strokeStyle: 'solid',
+    title: '',
     text: { content: '', dx: 0, dy: 0 },
   };
 }
@@ -97,6 +110,22 @@ export function removeElement(scene: Scene, id: string): Scene {
   return {
     ...scene,
     elements: scene.elements.filter((element) => element.id !== id),
+  };
+}
+
+// 그리는 순서의 맨 앞(위) 또는 맨 뒤(아래)로 옮긴다. 이미 그 자리면 같은 장면을 돌려준다.
+export function reorderElement(
+  scene: Scene,
+  id: string,
+  edge: 'front' | 'back',
+): Scene {
+  const element = scene.elements.find((element) => element.id === id);
+  const atEdge = edge === 'front' ? scene.elements.at(-1) : scene.elements[0];
+  if (!element || element === atEdge) return scene;
+  const rest = scene.elements.filter((other) => other !== element);
+  return {
+    ...scene,
+    elements: edge === 'front' ? [...rest, element] : [element, ...rest],
   };
 }
 
@@ -140,6 +169,17 @@ function isSceneElement(value: unknown): value is SceneElement {
   return kind === 'shape' || kind === 'connector';
 }
 
+// 나중에 추가한 속성이 없는 저장본에 기본값을 채운다.
+function withDefaults(element: SceneElement): SceneElement {
+  if (element.kind !== 'shape') return element;
+  return {
+    ...element,
+    stroke: element.stroke ?? INK_BLACK,
+    strokeStyle: element.strokeStyle ?? 'solid',
+    title: element.title ?? '',
+  };
+}
+
 // 저장된 문자열이 깨져 있어도 블록이 망가지지 않게 빈 장면으로 연다.
 export function parseScene(value: string): Scene {
   try {
@@ -147,7 +187,10 @@ export function parseScene(value: string): Scene {
     const elements = Array.isArray(parsed.elements)
       ? parsed.elements
       : fromLegacyScene(parsed);
-    return { version: 2, elements: elements.filter(isSceneElement) };
+    return {
+      version: 2,
+      elements: elements.filter(isSceneElement).map(withDefaults),
+    };
   } catch {
     return EMPTY_SCENE;
   }

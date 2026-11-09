@@ -85,8 +85,13 @@
   left: 50%;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: var(--space-1);
+  width: max-content;
+  /* 도구가 많아지면 완료 버튼을 가리지 않고 줄을 바꾼다. */
+  max-width: calc(100% - 14rem);
   padding: var(--space-1);
   border: 1px solid rgb(0 0 0 / 10%);
   border-radius: var(--space-3);
@@ -136,6 +141,19 @@
   padding-left: var(--space-2);
   margin-left: var(--space-1);
   border-left: 1px solid rgb(0 0 0 / 10%);
+}
+
+.design-title-input {
+  width: 8rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: var(--space-2);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.design-title-input:focus {
+  border-color: #228be6;
 }
 
 .design-swatch {

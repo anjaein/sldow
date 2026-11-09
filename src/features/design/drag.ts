@@ -1,5 +1,5 @@
 // 캔버스에서 끄는 동작 하나를 장면 변화로 바꾼다.
-import type { Connector, Point, Scene, Shape } from './types';
+import type { Connector, Point, Scene, SceneElement, Shape } from './types';
 import {
   createConnector,
   createShape,
@@ -13,6 +13,7 @@ import {
   getRectFromPoints,
   snapPoint,
   subtractPoint,
+  translateElement,
 } from './geometry';
 
 // 클릭으로 도형을 만들 때의 크기
@@ -26,7 +27,13 @@ export type Drag = {
   // Alt를 누르고 있으면 격자에 붙이지 않는다.
   snap: boolean;
 } & (
-  | { kind: 'move'; id: string; from: Rect }
+  | {
+      kind: 'move';
+      id: string;
+      from: Rect;
+      // 박스 안에 들어 있어 같이 옮기는 요소들의 끌기 시작 시점 모습
+      carried: SceneElement[];
+    }
   | { kind: 'resize'; id: string; anchor: Point }
   | { kind: 'create'; id: string; anchor: Point }
   | { kind: 'line-move'; id: string; from: Connector }
@@ -48,10 +55,26 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
 
   switch (drag.kind) {
     case 'move': {
-      const raw = addPoint(drag.from, delta);
+      // 박스만 격자에 맞추고 안쪽은 같은 만큼 옮겨 상대 위치를 유지한다.
+      const moveBy = (offset: Point) => {
+        const moved = new Map(
+          drag.carried.map((element) => [
+            element.id,
+            translateElement(element, offset),
+          ]),
+        );
+        const next = updateShape(scene, drag.id, addPoint(drag.from, offset));
+        return {
+          ...next,
+          elements: next.elements.map(
+            (element) => moved.get(element.id) ?? element,
+          ),
+        };
+      };
+      const snapped = snapIf(addPoint(drag.from, delta));
       return {
-        raw: updateShape(scene, drag.id, raw),
-        target: updateShape(scene, drag.id, snapIf(raw)),
+        raw: moveBy(delta),
+        target: moveBy(subtractPoint(snapped, drag.from)),
       };
     }
     case 'resize':
@@ -68,21 +91,10 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
         ),
       };
     case 'create': {
-      // 옛 동작대로 새 도형은 기존 선 아래에 놓는다.
-      const addShape = (rect: Rect) => {
-        const firstLine = scene.elements.findIndex(
-          (element) => element.kind === 'connector',
-        );
-        const at = firstLine === -1 ? scene.elements.length : firstLine;
-        return {
-          ...scene,
-          elements: [
-            ...scene.elements.slice(0, at),
-            { ...createShape(rect), id: drag.id },
-            ...scene.elements.slice(at),
-          ],
-        };
-      };
+      const addShape = (rect: Rect) => ({
+        ...scene,
+        elements: [...scene.elements, { ...createShape(rect), id: drag.id }],
+      });
       // 끌지 않고 누르기만 했으면 그 자리에 기본 크기로 만든다.
       if (!drag.moved) {
         const shape = addShape({

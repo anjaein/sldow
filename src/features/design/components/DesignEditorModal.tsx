@@ -3,17 +3,31 @@ import { MantineProvider, Modal } from '@mantine/core';
 import '@mantine/core/styles/ModalBase.layer.css';
 import '@mantine/core/styles/Modal.layer.css';
 import '@mantine/core/styles/Overlay.layer.css';
-import type { Scene } from '../types';
+import type { Scene, Shape, StrokeStyle } from '../types';
 import {
   PALETTE,
   findElement,
   removeElement,
+  reorderElement,
   updateConnector,
   updateShape,
 } from '../types';
 import { useSceneHistory } from '../hooks/useSceneHistory';
 import type { Tool } from './DesignCanvas';
 import DesignCanvas from './DesignCanvas';
+import InkSwatches from './InkSwatches';
+import ShapeTitleInput from './ShapeTitleInput';
+
+const SHAPE_TYPES: { type: Shape['type']; label: string }[] = [
+  { type: 'squircle', label: '둥근 박스' },
+  { type: 'rect', label: '사각 박스' },
+];
+
+const STROKE_STYLES: { style: StrokeStyle; label: string }[] = [
+  { style: 'solid', label: '실선' },
+  { style: 'dashed', label: '파선' },
+  { style: 'dotted', label: '점선' },
+];
 
 interface DesignEditorModalProps {
   scene: Scene;
@@ -31,6 +45,12 @@ export default function DesignEditorModal({
   const [tool, setTool] = useState<Tool>('select');
   const selected = findElement(draft, 'shape', selectedId);
   const selectedConnector = findElement(draft, 'connector', selectedId);
+
+  function reorder(edge: 'front' | 'back') {
+    if (!selectedId) return;
+    const next = reorderElement(draft, selectedId, edge);
+    if (next !== draft) setDraft(next);
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -136,6 +156,20 @@ export default function DesignEditorModal({
             </div>
           )}
           {selected && (
+            <div className="design-toolbar-group" aria-label="도형 모양">
+              {SHAPE_TYPES.map(({ type, label }) => (
+                <ToolButton
+                  key={type}
+                  label={label}
+                  active={selected.type === type}
+                  onClick={() =>
+                    setDraft(updateShape(draft, selected.id, { type }))
+                  }
+                />
+              ))}
+            </div>
+          )}
+          {selected && (
             <div className="design-toolbar-group" aria-label="도형 색">
               <button
                 type="button"
@@ -160,6 +194,55 @@ export default function DesignEditorModal({
                   }
                 />
               ))}
+            </div>
+          )}
+          {selected && (
+            <>
+              <InkSwatches
+                label="테두리 색"
+                value={selected.stroke}
+                onPick={(stroke) =>
+                  setDraft(updateShape(draft, selected.id, { stroke }))
+                }
+              />
+              <div className="design-toolbar-group" aria-label="테두리 모양">
+                {STROKE_STYLES.map(({ style, label }) => (
+                  <ToolButton
+                    key={style}
+                    label={label}
+                    active={selected.strokeStyle === style}
+                    onClick={() =>
+                      setDraft(
+                        updateShape(draft, selected.id, { strokeStyle: style }),
+                      )
+                    }
+                  />
+                ))}
+              </div>
+              <div className="design-toolbar-group">
+                <ShapeTitleInput
+                  // 되돌리기로 제목이 바뀌어도 입력칸이 따라가게 한다.
+                  key={`${selected.id}:${selected.title}`}
+                  title={selected.title}
+                  onCommit={(title) =>
+                    setDraft(updateShape(draft, selected.id, { title }))
+                  }
+                />
+              </div>
+            </>
+          )}
+          {(selected || selectedConnector) && (
+            <div className="design-toolbar-group" aria-label="겹침 순서">
+              <ToolButton
+                label="맨 앞으로"
+                active={false}
+                onClick={() => reorder('front')}
+              />
+              <ToolButton
+                label="맨 뒤로"
+                active={false}
+                onClick={() => reorder('back')}
+              />
             </div>
           )}
         </div>

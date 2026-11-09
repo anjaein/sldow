@@ -3,21 +3,34 @@
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
+const RADIUS = 20;
+const SMOOTHING = 0.6;
+
+// 한 모서리가 쓸 수 있는 길이는 짧은 변의 절반까지다.
+const getBudget = (w: number, h: number) => Math.max(0, Math.min(w, h) / 2);
+
+// 모서리 곡선이 변을 차지하는 길이. 이 안쪽만 곧은 변이다.
+export function getSquircleCornerLength(w: number, h: number): number {
+  const budget = getBudget(w, h);
+  const r = Math.min(RADIUS, budget);
+  if (r <= 0) return 0;
+  return Math.min((1 + Math.min(SMOOTHING, budget / r - 1)) * r, budget);
+}
+
+// gap을 주면 윗변의 그 구간을 비운 열린 경로를 돌려준다. 윗변의 곧은 부분 안에 있어야 한다.
 export function getSquirclePath(
   x: number,
   y: number,
   w: number,
   h: number,
-  radius = 20,
-  smoothing = 0.6,
+  gap?: { from: number; to: number },
 ): string {
-  // 한 모서리가 쓸 수 있는 길이는 짧은 변의 절반까지다.
-  const budget = Math.max(0, Math.min(w, h) / 2);
-  const r = Math.min(radius, budget);
+  const budget = getBudget(w, h);
+  const r = Math.min(RADIUS, budget);
   if (r <= 0) return `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
 
-  const s = Math.min(smoothing, budget / r - 1);
-  const p = Math.min((1 + s) * r, budget);
+  const s = Math.min(SMOOTHING, budget / r - 1);
+  const p = getSquircleCornerLength(w, h);
   const arcMeasure = 90 * (1 - s);
   const arc = Math.sin(toRadians(arcMeasure / 2)) * r * Math.SQRT2;
   const angleAlpha = (90 - arcMeasure) / 2;
@@ -30,7 +43,7 @@ export function getSquirclePath(
   const abc = a + b + c;
 
   return [
-    `M ${x + w - p} ${y}`,
+    gap ? `M ${gap.to} ${y} L ${x + w - p} ${y}` : `M ${x + w - p} ${y}`,
     `c ${a} 0 ${a + b} 0 ${abc} ${d}`,
     `a ${r} ${r} 0 0 1 ${arc} ${arc}`,
     `c ${d} ${c} ${d} ${b + c} ${d} ${abc}`,
@@ -46,6 +59,6 @@ export function getSquirclePath(
     `c 0 ${-a} 0 ${-(a + b)} ${d} ${-abc}`,
     `a ${r} ${r} 0 0 1 ${arc} ${-arc}`,
     `c ${c} ${-d} ${b + c} ${-d} ${abc} ${-d}`,
-    'Z',
+    gap ? `L ${gap.from} ${y}` : 'Z',
   ].join(' ');
 }
