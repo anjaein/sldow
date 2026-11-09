@@ -1,11 +1,19 @@
 import { useId } from 'react';
 import type { Connector, Scene, Shape } from '../types';
-import { getSquirclePath } from '../squircle';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  getBoxTitle,
+  getShapeOutlinePath,
+  getShapePath,
+} from '../box';
+import { SCENE_FONT } from '../measure';
 import { getConnectorPath } from '../connector';
 import { clampTextOffset } from '../geometry';
 
 const STROKE = '#111111';
 const STROKE_WIDTH = 1.5;
+const DASH_ARRAYS = { solid: undefined, dashed: '6 6', dotted: '0 5' };
 
 // 장면의 도형과 선을 그린다. <svg> 안에 넣어 쓰므로 미리보기·편집 창·애니메이션이 같이 쓴다.
 export default function SceneView({
@@ -20,7 +28,7 @@ export default function SceneView({
   const arrowId = `arrow-${useId()}`;
 
   return (
-    <g>
+    <g fontFamily={SCENE_FONT}>
       <defs>
         <marker
           id={arrowId}
@@ -52,17 +60,21 @@ export default function SceneView({
 }
 
 function ShapeView({ shape }: { shape: Shape }) {
-  const { x, y, w, h, fill, text } = shape;
+  const { x, y, w, h, fill, stroke, strokeStyle, text } = shape;
+  const title = getBoxTitle(shape);
   // 도형을 줄여도 글자가 도형 밖으로 나가지 않게 한다.
   const { dx, dy } = clampTextOffset(shape, text);
   return (
     // 편집 창이 눌린 도형을 찾을 수 있게 id를 남긴다.
     <g data-shape-id={shape.id}>
+      <path d={getShapePath(shape)} fill={fill ?? '#ffffff'} />
       <path
-        d={getSquirclePath(x, y, w, h)}
-        fill={fill ?? '#ffffff'}
-        stroke={STROKE}
+        d={getShapeOutlinePath(shape, title)}
+        fill="none"
+        stroke={stroke}
         strokeWidth={STROKE_WIDTH}
+        strokeDasharray={DASH_ARRAYS[strokeStyle]}
+        strokeLinecap={strokeStyle === 'dotted' ? 'round' : undefined}
       />
       {text.content && (
         <text
@@ -75,6 +87,18 @@ function ShapeView({ shape }: { shape: Shape }) {
           fill={STROKE}
         >
           {text.content}
+        </text>
+      )}
+      {title && (
+        <text
+          x={title.x}
+          y={y}
+          dominantBaseline="central"
+          fontSize={TITLE_FONT_SIZE}
+          fontWeight={TITLE_FONT_WEIGHT}
+          fill={stroke}
+        >
+          {title.text}
         </text>
       )}
     </g>
