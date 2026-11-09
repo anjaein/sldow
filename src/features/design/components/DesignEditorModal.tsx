@@ -17,6 +17,7 @@ import type { Tool } from './DesignCanvas';
 import DesignCanvas from './DesignCanvas';
 import InkSwatches from './InkSwatches';
 import ShapeTitleInput from './ShapeTitleInput';
+import ToolButton from './ToolButton';
 
 const SHAPE_TYPES: { type: Shape['type']; label: string }[] = [
   { type: 'squircle', label: '둥근 박스' },
@@ -45,6 +46,7 @@ export default function DesignEditorModal({
   const [tool, setTool] = useState<Tool>('select');
   const selected = findElement(draft, 'shape', selectedId);
   const selectedConnector = findElement(draft, 'connector', selectedId);
+  const hasSelection = draft.elements.some(({ id }) => id === selectedId);
 
   function reorder(edge: 'front' | 'back') {
     if (!selectedId) return;
@@ -55,7 +57,13 @@ export default function DesignEditorModal({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // 글자를 입력하는 동안에는 입력칸의 기본 동작을 그대로 쓴다.
-      if (event.target instanceof HTMLInputElement) return;
+      const { target } = event;
+      if (
+        target instanceof HTMLInputElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
       const modified = event.metaKey || event.ctrlKey;
       // 한글 입력 상태에서도 동작하도록 글자가 아니라 키 위치로 판단한다.
       if (modified && event.code === 'KeyZ') {
@@ -68,7 +76,7 @@ export default function DesignEditorModal({
       } else if (
         !modified &&
         (event.key === 'Delete' || event.key === 'Backspace') &&
-        (selected || selectedConnector)
+        hasSelection
       ) {
         event.preventDefault();
         setDraft(removeElement(draft, selectedId!));
@@ -77,7 +85,7 @@ export default function DesignEditorModal({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [draft, selected, selectedConnector, selectedId, setDraft, undo, redo]);
+  }, [draft, hasSelection, selectedId, setDraft, undo, redo]);
 
   return (
     <MantineProvider>
@@ -106,6 +114,11 @@ export default function DesignEditorModal({
             label="선"
             active={tool === 'line'}
             onClick={() => setTool('line')}
+          />
+          <ToolButton
+            label="글자"
+            active={tool === 'text'}
+            onClick={() => setTool('text')}
           />
           {selectedConnector && (
             <div className="design-toolbar-group" aria-label="선 모양">
@@ -231,7 +244,7 @@ export default function DesignEditorModal({
               </div>
             </>
           )}
-          {(selected || selectedConnector) && (
+          {hasSelection && (
             <div className="design-toolbar-group" aria-label="겹침 순서">
               <ToolButton
                 label="맨 앞으로"
@@ -263,26 +276,5 @@ export default function DesignEditorModal({
         />
       </Modal>
     </MantineProvider>
-  );
-}
-
-function ToolButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="design-tool"
-      aria-pressed={active}
-      onClick={onClick}
-    >
-      {label}
-    </button>
   );
 }

@@ -2,8 +2,15 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
 import { animate } from 'motion';
 import type { AnimationPlaybackControls } from 'motion';
-import type { Connector, Point, Scene } from '../types';
-import { findElement, updateShape } from '../types';
+import type { Connector, Point, Scene, TextElement, TextRun } from '../types';
+import {
+  createText,
+  findElement,
+  removeElement,
+  updateShape,
+  updateText,
+} from '../types';
+import { isRunsBlank, trimTrailingNewlines } from '../text';
 import type { Corner, Rect } from '../geometry';
 import {
   CORNERS,
@@ -11,15 +18,18 @@ import {
   getContainedElements,
   getCornerPoint,
   getOppositeCorner,
+  getTextRect,
   mixScene,
+  snapPoint,
 } from '../geometry';
 import type { Drag } from '../drag';
 import { getDragScenes } from '../drag';
 import { getConnectorPath } from '../connector';
 import SceneView from './SceneView';
 import ShapeTextEditor from './ShapeTextEditor';
+import TextEditor from './TextEditor';
 
-export type Tool = 'select' | 'shape' | 'line';
+export type Tool = 'select' | 'shape' | 'line' | 'text';
 
 // 이보다 적게 움직이면 끈 것이 아니라 누른 것으로 본다.
 const DRAG_THRESHOLD = 4;
@@ -49,6 +59,8 @@ export default function DesignCanvas({
   const [drag, setDrag] = useState<Drag | null>(null);
   // 글자를 입력 중인 도형의 id
   const [editingId, setEditingId] = useState<string | null>(null);
+  // 입력 중인 자유 텍스트. 새 글자는 입력을 마칠 때 장면에 넣는다.
+  const [editingText, setEditingText] = useState<TextElement | null>(null);
   // 놓은 뒤 격자 자리로 스프링처럼 붙는 동안, 놓은 순간의 장면과 진행 정도
   const [settle, setSettle] = useState<{ from: Scene; t: number } | null>(null);
   const settleAnimation = useRef<AnimationPlaybackControls>(null);
@@ -107,8 +119,13 @@ export default function DesignCanvas({
       ?.dataset.connectorId;
     const shapeId =
       target.closest<SVGElement>('[data-shape-id]')?.dataset.shapeId;
+    const textId =
+      target.closest<HTMLElement>('[data-text-id]')?.dataset.textId;
+    const widthHandle = target.closest('[data-text-width]');
     const shape = findElement(scene, 'shape', shapeId);
     const connector = findElement(scene, 'connector', connectorId);
+    const text = findElement(scene, 'text', textId);
+    const selectedText = findElement(scene, 'text', selectedId);
 
     if (corner && selectedId) {
       const selected = findElement(scene, 'shape', selectedId)!;
@@ -116,6 +133,15 @@ export default function DesignCanvas({
       setDrag({ ...base, kind: 'resize', id: selectedId, anchor });
     } else if (end && selectedId) {
       setDrag({ ...base, kind: 'line-end', id: selectedId, end });
+    } else if (widthHandle && selectedText) {
+      setDrag({
+        ...base,
+        kind: 'text-box-width',
+        id: selectedText.id,
+        x: selectedText.x,
+      });
+    } else if (tool === 'text') {
+      setDrag({ ...base, kind: 'text-create', id: crypto.randomUUID() });
     } else if (tool === 'shape') {
       setDrag({
         ...base,
@@ -136,6 +162,9 @@ export default function DesignCanvas({
     ) {
       // 이미 선택한 도형의 글자를 끌면 글자만 옮긴다.
       setDrag({ ...base, kind: 'text-move', shape: shape! });
+    } else if (text) {
+      onSelect(text.id);
+      setDrag({ ...base, kind: 'text-box-move', id: text.id, from: text });
     } else if (connector) {
       onSelect(connector.id);
       setDrag({
@@ -163,9 +192,18 @@ export default function DesignCanvas({
   function handleDoubleClick(event: MouseEvent<SVGSVGElement>) {
     if (tool !== 'select') return;
     // 포인터 캡처 때문에 event.target이 svg가 되므로 실제 눌린 요소를 다시 찾는다.
-    const id = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<SVGElement>('[data-shape-id]')?.dataset.shapeId;
+    const pressed = document.elementFromPoint(event.clientX, event.clientY);
+    const text = findElement(
+      scene,
+      'text',
+      pressed?.closest<HTMLElement>('[data-text-id]')?.dataset.textId,
+    );
+    if (text) {
+      onSelect(text.id);
+      setEditingText(text);
+      return;
+    }
+    const id = pressed?.closest<SVGElement>('[data-shape-id]')?.dataset.shapeId;
     if (!id) return;
     onSelect(id);
     setEditingId(id);
@@ -176,6 +214,24 @@ export default function DesignCanvas({
     const shape = findElement(scene, 'shape', id);
     if (!shape || shape.text.content === content) return;
     onChange(updateShape(scene, id, { text: { ...shape.text, content } }));
+  }
+
+  function finishText(text: TextElement, runs: TextRun[]) {
+    setEditingText(null);
+    const trimmed = trimTrailingNewlines(runs);
+    const existing = findElement(scene, 'text', text.id);
+    if (isRunsBlank(trimmed)) {
+      if (existing) onChange(removeElement(scene, text.id));
+      onSelect(null);
+    } else if (!existing) {
+      onChange({
+        ...scene,
+        elements: [...scene.elements, { ...text, runs: trimmed }],
+      });
+      onSelect(text.id);
+    } else if (JSON.stringify(trimmed) !== JSON.stringify(existing.runs)) {
+      onChange(updateText(scene, text.id, { runs: trimmed }));
+    }
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
@@ -198,6 +254,14 @@ export default function DesignCanvas({
     if (!drag) return;
     setDrag(null);
     const finished = { ...drag, snap: !event.altKey };
+    if (finished.kind === 'text-create') {
+      const { x, y } = finished.snap
+        ? snapPoint(finished.start)
+        : finished.start;
+      setEditingText({ ...createText({ x, y }), id: finished.id });
+      onToolDone();
+      return;
+    }
     const creating =
       finished.kind === 'create' || finished.kind === 'line-create';
     // 선은 누르기만 해서는 만들지 않는다. 도형은 기본 크기로 만든다.
@@ -233,8 +297,14 @@ export default function DesignCanvas({
     });
   }
 
+  // 입력하는 동안에는 입력칸만 보이게 한다.
+  if (editingText) {
+    displayScene = removeElement(displayScene, editingText.id);
+  }
+
   const selectedShape = findElement(displayScene, 'shape', selectedId);
   const selectedConnector = findElement(displayScene, 'connector', selectedId);
+  const selectedText = findElement(displayScene, 'text', selectedId);
 
   return (
     <svg
@@ -272,12 +342,20 @@ export default function DesignCanvas({
       {selectedConnector && (
         <ConnectorSelection connector={selectedConnector} />
       )}
+      {selectedText && <TextSelection rect={getTextRect(selectedText)} />}
       {editingShape && (
         <ShapeTextEditor
           key={editingShape.id}
           shape={editingShape}
           onCommit={(content) => commitText(editingShape.id, content)}
           onCancel={() => setEditingId(null)}
+        />
+      )}
+      {editingText && (
+        <TextEditor
+          key={editingText.id}
+          text={editingText}
+          onFinish={(runs) => finishText(editingText, runs)}
         />
       )}
     </svg>
@@ -311,6 +389,29 @@ function ShapeSelection({ rect }: { rect: Rect }) {
           />
         );
       })}
+    </g>
+  );
+}
+
+function TextSelection({ rect }: { rect: Rect }) {
+  return (
+    <g>
+      <rect
+        className="design-selection"
+        x={rect.x}
+        y={rect.y}
+        width={rect.w}
+        height={rect.h}
+      />
+      <rect
+        className="design-handle design-width-handle"
+        data-text-width
+        x={rect.x + rect.w - HANDLE_SIZE / 2}
+        y={rect.y + rect.h / 2 - HANDLE_SIZE / 2}
+        width={HANDLE_SIZE}
+        height={HANDLE_SIZE}
+        rx={2}
+      />
     </g>
   );
 }

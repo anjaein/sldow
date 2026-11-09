@@ -1,11 +1,20 @@
 // 캔버스에서 끄는 동작 하나를 장면 변화로 바꾼다.
-import type { Connector, Point, Scene, SceneElement, Shape } from './types';
+import type {
+  Connector,
+  Point,
+  Scene,
+  SceneElement,
+  Shape,
+  TextElement,
+} from './types';
 import {
   createConnector,
   createShape,
   updateConnector,
   updateShape,
+  updateText,
 } from './types';
+import { MIN_TEXT_WIDTH } from './text';
 import type { Rect } from './geometry';
 import {
   addPoint,
@@ -40,6 +49,10 @@ export type Drag = {
   | { kind: 'line-end'; id: string; end: 'from' | 'to' }
   | { kind: 'line-create'; id: string; anchor: Point }
   | { kind: 'text-move'; shape: Shape }
+  | { kind: 'text-box-move'; id: string; from: TextElement }
+  | { kind: 'text-box-width'; id: string; x: number }
+  // 누르는 순간 입력칸을 열면 브라우저가 포커스를 뺏으므로 놓을 때 연다.
+  | { kind: 'text-create'; id: string }
 );
 
 export interface DragScenes {
@@ -136,6 +149,22 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
         target: withOffset(snapped.x, snapped.y),
       };
     }
+    case 'text-box-move': {
+      const raw = addPoint(drag.from, delta);
+      return {
+        raw: updateText(scene, drag.id, raw),
+        target: updateText(scene, drag.id, snapIf(raw)),
+      };
+    }
+    case 'text-box-width': {
+      const widthTo = ({ x }: Point) => Math.max(MIN_TEXT_WIDTH, x - drag.x);
+      return {
+        raw: updateText(scene, drag.id, { w: widthTo(drag.point) }),
+        target: updateText(scene, drag.id, { w: widthTo(snapIf(drag.point)) }),
+      };
+    }
+    case 'text-create':
+      return { raw: scene, target: scene };
     case 'line-end':
       return {
         raw: updateConnector(scene, drag.id, { [drag.end]: drag.point }),

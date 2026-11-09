@@ -1,4 +1,5 @@
-import type { Point, Scene, SceneElement, Shape } from './types';
+import type { Point, Scene, SceneElement, Shape, TextElement } from './types';
+import { measureTextHeight } from './measure';
 
 export const GRID_SIZE = 20;
 // 도형이 이보다 작아지지 않게 한다.
@@ -77,6 +78,30 @@ function isRectInside(inner: Rect, outer: Rect): boolean {
   );
 }
 
+export function getTextRect(text: TextElement): Rect {
+  return { x: text.x, y: text.y, w: text.w, h: measureTextHeight(text) };
+}
+
+// 장면에 들어 있는 모든 요소를 감싸는 사각형. 비어 있으면 null.
+export function getSceneBounds(scene: Scene): Rect | null {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const element of scene.elements) {
+    if (element.kind === 'connector') {
+      xs.push(element.from.x, element.to.x);
+      ys.push(element.from.y, element.to.y);
+    } else {
+      const rect = element.kind === 'text' ? getTextRect(element) : element;
+      xs.push(rect.x, rect.x + rect.w);
+      ys.push(rect.y, rect.y + rect.h);
+    }
+  }
+  if (xs.length === 0) return null;
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
 // 박스를 옮길 때 같이 움직일, 박스 안에 완전히 들어 있는 요소들.
 // 크기까지 같은 도형은 빼서, 같은 자리에 겹쳐 그린 두 도형을 떼어 놓을 수 있게 한다.
 export function getContainedElements(scene: Scene, box: Shape): SceneElement[] {
@@ -87,6 +112,7 @@ export function getContainedElements(scene: Scene, box: Shape): SceneElement[] {
         isRectInside(element, box) && element.w * element.h < box.w * box.h
       );
     }
+    if (element.kind === 'text') return isRectInside(getTextRect(element), box);
     return isPointInside(element.from, box) && isPointInside(element.to, box);
   });
 }
@@ -95,8 +121,9 @@ export function translateElement(
   element: SceneElement,
   offset: Point,
 ): SceneElement {
-  if (element.kind === 'shape')
+  if (element.kind !== 'connector') {
     return { ...element, ...addPoint(element, offset) };
+  }
   return {
     ...element,
     from: addPoint(element.from, offset),
@@ -128,6 +155,14 @@ function mixElement(
         dx: mix(start.text.dx, element.text.dx, t),
         dy: mix(start.text.dy, element.text.dy, t),
       },
+    };
+  }
+  if (start.kind === 'text' && element.kind === 'text') {
+    return {
+      ...element,
+      x: mix(start.x, element.x, t),
+      y: mix(start.y, element.y, t),
+      w: mix(start.w, element.w, t),
     };
   }
   if (start.kind === 'connector' && element.kind === 'connector') {

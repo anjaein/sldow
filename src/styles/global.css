@@ -184,8 +184,60 @@
   cursor: crosshair;
 }
 
-.design-canvas[data-tool='select'] [data-shape-id] {
+.design-canvas[data-tool='text'] {
+  cursor: text;
+}
+
+.design-canvas[data-tool='select'] [data-shape-id],
+.design-canvas[data-tool='select'] [data-text-id] {
   cursor: move;
+}
+
+/* 미리보기와 편집 창, 높이 측정이 같은 줄바꿈을 쓰도록 한곳에서 정한다. */
+.design-text {
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.design-text-probe {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.design-text-editing {
+  min-height: 1.4em;
+  outline: 1px solid #228be6;
+  /* foreignObject 밖은 잘리므로 안쪽에 그린다. */
+  outline-offset: -1px;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.design-format-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  height: 2.5rem;
+  padding: var(--space-1);
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: var(--space-3);
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 8%);
+  pointer-events: auto;
+  user-select: none;
+}
+
+.design-format-bar .design-toolbar-group:first-child {
+  padding-left: 0;
+  margin-left: 0;
+  border-left: none;
 }
 
 .design-text-input {
@@ -243,4 +295,8 @@
 
 .design-end-handle {
   cursor: crosshair;
+}
+
+.design-width-handle {
+  cursor: ew-resize;
 }

@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { Connector, Scene, Shape } from '../types';
+import type { Connector, Scene, Shape, TextElement } from '../types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -7,7 +7,8 @@ import {
   getShapeOutlinePath,
   getShapePath,
 } from '../box';
-import { SCENE_FONT } from '../measure';
+import { SCENE_FONT, measureTextHeight } from '../measure';
+import { DEFAULT_RUN_STYLE, getRootFontSize, getRunStyle } from '../text';
 import { getConnectorPath } from '../connector';
 import { clampTextOffset } from '../geometry';
 
@@ -43,18 +44,22 @@ export default function SceneView({
           <path d="M 0 0 L 10 5 L 0 10 z" fill={STROKE} />
         </marker>
       </defs>
-      {scene.elements.map((element) =>
-        element.kind === 'shape' ? (
-          <ShapeView key={element.id} shape={element} />
-        ) : (
+      {scene.elements.map((element) => {
+        if (element.kind === 'shape') {
+          return <ShapeView key={element.id} shape={element} />;
+        }
+        if (element.kind === 'text') {
+          return <TextView key={element.id} text={element} />;
+        }
+        return (
           <ConnectorView
             key={element.id}
             connector={element}
             arrowId={arrowId}
             interactive={interactive}
           />
-        ),
-      )}
+        );
+      })}
     </g>
   );
 }
@@ -102,6 +107,31 @@ function ShapeView({ shape }: { shape: Shape }) {
         </text>
       )}
     </g>
+  );
+}
+
+function TextView({ text }: { text: TextElement }) {
+  return (
+    <foreignObject
+      x={text.x}
+      y={text.y}
+      width={text.w}
+      height={measureTextHeight(text)}
+    >
+      <div
+        className="design-text"
+        data-text-id={text.id}
+        style={{
+          fontSize: `${getRootFontSize(text.runs, DEFAULT_RUN_STYLE)}px`,
+        }}
+      >
+        {text.runs.map(({ text: content, ...style }, index) => (
+          <span key={index} style={getRunStyle(style)}>
+            {content}
+          </span>
+        ))}
+      </div>
+    </foreignObject>
   );
 }
 

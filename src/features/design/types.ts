@@ -42,7 +42,26 @@ export interface Connector {
   to: Point;
 }
 
-export type SceneElement = Shape | Connector;
+export interface TextRun {
+  text: string;
+  color: string;
+  size: number;
+  bold?: boolean;
+  // 밑줄 색. 글자색과 다를 수 있다. 없으면 null.
+  underline?: string | null;
+}
+
+export interface TextElement {
+  id: string;
+  kind: 'text';
+  x: number;
+  y: number;
+  w: number;
+  // 줄바꿈은 run.text 안의 \n이다.
+  runs: TextRun[];
+}
+
+export type SceneElement = Shape | Connector | TextElement;
 
 export interface Scene {
   version: 2;
@@ -69,6 +88,8 @@ export const PALETTE = [
 export const INK_BLACK = '#111111';
 export const INK = [INK_BLACK, '#e03131', '#1971c2', '#868e96'];
 
+export const DEFAULT_TEXT_WIDTH = 200;
+
 export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
   return {
     id: crypto.randomUUID(),
@@ -92,6 +113,16 @@ export function createConnector(from: Point, to: Point): Connector {
     arrowEnd: true,
     from,
     to,
+  };
+}
+
+export function createText(point: Point): TextElement {
+  return {
+    id: crypto.randomUUID(),
+    kind: 'text',
+    ...point,
+    w: DEFAULT_TEXT_WIDTH,
+    runs: [],
   };
 }
 
@@ -166,11 +197,18 @@ function fromLegacyScene({ shapes, connectors }: LegacyScene): SceneElement[] {
 function isSceneElement(value: unknown): value is SceneElement {
   if (typeof value !== 'object' || value === null) return false;
   const { kind } = value as Partial<SceneElement>;
-  return kind === 'shape' || kind === 'connector';
+  return kind === 'shape' || kind === 'connector' || kind === 'text';
 }
 
 // 나중에 추가한 속성이 없는 저장본에 기본값을 채운다.
 function withDefaults(element: SceneElement): SceneElement {
+  if (element.kind === 'text') {
+    return {
+      ...element,
+      w: element.w ?? DEFAULT_TEXT_WIDTH,
+      runs: Array.isArray(element.runs) ? element.runs : [],
+    };
+  }
   if (element.kind !== 'shape') return element;
   return {
     ...element,
@@ -196,30 +234,19 @@ export function parseScene(value: string): Scene {
   }
 }
 
-export interface Bounds {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-// 장면에 들어 있는 모든 도형과 선을 감싸는 사각형. 비어 있으면 null.
-export function getSceneBounds(scene: Scene): Bounds | null {
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (const element of scene.elements) {
-    if (element.kind === 'shape') {
-      xs.push(element.x, element.x + element.w);
-      ys.push(element.y, element.y + element.h);
-    } else {
-      xs.push(element.from.x, element.to.x);
-      ys.push(element.from.y, element.to.y);
-    }
-  }
-  if (xs.length === 0) return null;
-  const x = Math.min(...xs);
-  const y = Math.min(...ys);
-  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+export function updateText(
+  scene: Scene,
+  id: string,
+  patch: Partial<TextElement>,
+): Scene {
+  return {
+    ...scene,
+    elements: scene.elements.map((element) =>
+      element.kind === 'text' && element.id === id
+        ? { ...element, ...patch }
+        : element,
+    ),
+  };
 }
 
 export function updateConnector(
