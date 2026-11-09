@@ -1,5 +1,5 @@
 import type { Scene } from '../types';
-import { getSceneBounds } from '../types';
+import { getSceneBounds } from '../geometry';
 import SceneView from './SceneView';
 
 // 선 두께와 화살표가 잘리지 않게 둘레에 남기는 여백
