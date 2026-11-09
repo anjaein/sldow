@@ -15,11 +15,21 @@ import {
   updateText,
 } from './types';
 import { MIN_TEXT_WIDTH } from './text';
+import type { Alignment, AlignLines, Guide } from './guides';
+import {
+  NO_ALIGNMENT,
+  alignDrag,
+  getEdgeLines,
+  getPointLines,
+  getRectLines,
+  getSceneLines,
+} from './guides';
 import type { Rect } from './geometry';
 import {
   addPoint,
   clampTextOffset,
   getRectFromPoints,
+  getTextRect,
   snapPoint,
   subtractPoint,
   translateElement,
@@ -59,13 +69,31 @@ export type Drag = {
 export interface DragScenes {
   // 포인터를 그대로 따라가는, 끄는 동안 보여 줄 장면
   raw: Scene;
-  // 놓았을 때 격자에 붙어 자리잡을 장면
+  // 놓았을 때 격자나 안내선에 붙어 자리잡을 장면
   target: Scene;
+  // 끄는 동안 보여 줄 정렬 안내선
+  guides: Guide[];
 }
 
 export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
   const snapIf = (point: Point) => (drag.snap ? snapPoint(point) : point);
   const delta = subtractPoint(drag.point, drag.start);
+  // Alt는 격자와 안내선을 함께 끈다.
+  const align = (
+    getLines: (offset: Point) => AlignLines,
+    excluded: string[],
+  ): Alignment =>
+    drag.snap && drag.moved
+      ? alignDrag(getLines, getSceneLines(scene, excluded))
+      : NO_ALIGNMENT;
+  // 안내선에 걸린 축은 그대로 두고 나머지 축만 격자에 붙인다.
+  const settle = (point: Point, { engaged }: Alignment): Point => {
+    const snapped = snapIf(point);
+    return {
+      x: engaged.x ? point.x : snapped.x,
+      y: engaged.y ? point.y : snapped.y,
+    };
+  };
 
   switch (drag.kind) {
     case 'move': {
@@ -85,25 +113,35 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
           ),
         };
       };
-      const snapped = snapIf(addPoint(drag.from, delta));
+      const position = addPoint(drag.from, delta);
+      const alignment = align(
+        (offset) =>
+          getRectLines({ ...drag.from, ...addPoint(position, offset) }),
+        [drag.id, ...drag.carried.map(({ id }) => id)],
+      );
+      const aligned = addPoint(position, alignment.offset);
       return {
-        raw: moveBy(delta),
-        target: moveBy(subtractPoint(snapped, drag.from)),
+        raw: moveBy(subtractPoint(aligned, drag.from)),
+        target: moveBy(subtractPoint(settle(aligned, alignment), drag.from)),
+        guides: alignment.guides,
       };
     }
-    case 'resize':
+    case 'resize': {
+      const alignment = align(
+        (offset) => getEdgeLines(drag.anchor, addPoint(drag.point, offset)),
+        [drag.id],
+      );
+      const point = addPoint(drag.point, alignment.offset);
       return {
-        raw: updateShape(
-          scene,
-          drag.id,
-          getRectFromPoints(drag.anchor, drag.point),
-        ),
+        raw: updateShape(scene, drag.id, getRectFromPoints(drag.anchor, point)),
         target: updateShape(
           scene,
           drag.id,
-          getRectFromPoints(drag.anchor, snapIf(drag.point)),
+          getRectFromPoints(drag.anchor, settle(point, alignment)),
         ),
+        guides: alignment.guides,
       };
+    }
     case 'create': {
       const addShape = (rect: Rect) => ({
         ...scene,
@@ -115,13 +153,19 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
           ...snapIf(drag.anchor),
           ...DEFAULT_SHAPE_SIZE,
         });
-        return { raw: shape, target: shape };
+        return { raw: shape, target: shape, guides: [] };
       }
+      const alignment = align(
+        (offset) => getEdgeLines(drag.anchor, addPoint(drag.point, offset)),
+        [],
+      );
+      const point = addPoint(drag.point, alignment.offset);
       return {
-        raw: addShape(getRectFromPoints(drag.anchor, drag.point)),
+        raw: addShape(getRectFromPoints(drag.anchor, point)),
         target: addShape(
-          getRectFromPoints(snapIf(drag.anchor), snapIf(drag.point)),
+          getRectFromPoints(snapIf(drag.anchor), settle(point, alignment)),
         ),
+        guides: alignment.guides,
       };
     }
     case 'line-move': {
@@ -132,10 +176,19 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
           drag.id,
           translateElement(drag.from, offset) as Connector,
         );
-      const from = addPoint(drag.from.from, delta);
+      const alignment = align(
+        (offset) =>
+          getPointLines([
+            addPoint(addPoint(drag.from.from, delta), offset),
+            addPoint(addPoint(drag.from.to, delta), offset),
+          ]),
+        [drag.id],
+      );
+      const from = addPoint(addPoint(drag.from.from, delta), alignment.offset);
       return {
-        raw: moveBy(delta),
-        target: moveBy(addPoint(delta, subtractPoint(snapIf(from), from))),
+        raw: moveBy(addPoint(delta, alignment.offset)),
+        target: moveBy(subtractPoint(settle(from, alignment), drag.from.from)),
+        guides: alignment.guides,
       };
     }
     case 'line-control':
@@ -144,6 +197,7 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
         target: updateConnector(scene, drag.id, {
           control: snapIf(drag.point),
         }),
+        guides: [],
       };
     case 'text-move': {
       const { shape } = drag;
@@ -156,13 +210,21 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
       return {
         raw: withOffset(moved.x, moved.y),
         target: withOffset(snapped.x, snapped.y),
+        guides: [],
       };
     }
     case 'text-box-move': {
-      const raw = addPoint(drag.from, delta);
+      const position = addPoint(drag.from, delta);
+      const rect = getTextRect(drag.from);
+      const alignment = align(
+        (offset) => getRectLines({ ...rect, ...addPoint(position, offset) }),
+        [drag.id],
+      );
+      const raw = addPoint(position, alignment.offset);
       return {
         raw: updateText(scene, drag.id, raw),
-        target: updateText(scene, drag.id, snapIf(raw)),
+        target: updateText(scene, drag.id, settle(raw, alignment)),
+        guides: alignment.guides,
       };
     }
     case 'text-box-width': {
@@ -170,17 +232,25 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
       return {
         raw: updateText(scene, drag.id, { w: widthTo(drag.point) }),
         target: updateText(scene, drag.id, { w: widthTo(snapIf(drag.point)) }),
+        guides: [],
       };
     }
     case 'text-create':
-      return { raw: scene, target: scene };
-    case 'line-end':
+      return { raw: scene, target: scene, guides: [] };
+    case 'line-end': {
+      const alignment = align(
+        (offset) => getPointLines([addPoint(drag.point, offset)]),
+        [drag.id],
+      );
+      const point = addPoint(drag.point, alignment.offset);
       return {
-        raw: updateConnector(scene, drag.id, { [drag.end]: drag.point }),
+        raw: updateConnector(scene, drag.id, { [drag.end]: point }),
         target: updateConnector(scene, drag.id, {
-          [drag.end]: snapIf(drag.point),
+          [drag.end]: settle(point, alignment),
         }),
+        guides: alignment.guides,
       };
+    }
     case 'line-create': {
       const addConnector = (from: Point, to: Point) => ({
         ...scene,
@@ -189,9 +259,15 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
           { ...createConnector(from, to), id: drag.id },
         ],
       });
+      const alignment = align(
+        (offset) => getPointLines([addPoint(drag.point, offset)]),
+        [],
+      );
+      const point = addPoint(drag.point, alignment.offset);
       return {
-        raw: addConnector(drag.anchor, drag.point),
-        target: addConnector(snapIf(drag.anchor), snapIf(drag.point)),
+        raw: addConnector(drag.anchor, point),
+        target: addConnector(snapIf(drag.anchor), settle(point, alignment)),
+        guides: alignment.guides,
       };
     }
   }
