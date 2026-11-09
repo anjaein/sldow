@@ -267,13 +267,29 @@
   pointer-events: none;
 }
 
+.design-guide {
+  stroke: #e03131;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
 .design-connector-hit {
   fill: none;
   stroke: transparent;
   stroke-width: 12;
 }
 
-.design-canvas[data-tool='select'] .design-connector-hit {
+.design-canvas[data-tool='select'] .design-guide {
+  stroke: #e03131;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+.design-connector-hit {
   cursor: move;
 }
 

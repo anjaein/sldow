@@ -25,6 +25,7 @@ import {
 } from '../geometry';
 import type { Drag } from '../drag';
 import { getDragScenes } from '../drag';
+import type { Guide } from '../guides';
 import { getConnectorPath, getControlHandle } from '../connector';
 import SceneView from './SceneView';
 import ShapeTextEditor from './ShapeTextEditor';
@@ -304,8 +305,9 @@ export default function DesignCanvas({
 
   // 끄는 중이거나 자리잡는 중이면 저장된 위치 대신 화면용 위치로 그린다.
   let displayScene = scene;
-  if (drag?.moved) {
-    displayScene = getDragScenes(scene, drag).raw;
+  const dragScenes = drag?.moved ? getDragScenes(scene, drag) : null;
+  if (dragScenes) {
+    displayScene = dragScenes.raw;
   } else if (settle) {
     displayScene = mixScene(settle.from, scene, settle.t);
   }
@@ -370,6 +372,9 @@ export default function DesignCanvas({
         <ConnectorSelection connector={selectedConnector} />
       )}
       {selectedText && <TextSelection rect={getTextRect(selectedText)} />}
+      {dragScenes?.guides.map((guide) => (
+        <GuideLine key={guide.axis} guide={guide} />
+      ))}
       {editingShape && (
         <ShapeTextEditor
           key={editingShape.id}
@@ -398,6 +403,27 @@ export default function DesignCanvas({
 }
 
 const HANDLE_SIZE = 8;
+
+function GuideLine({ guide }: { guide: Guide }) {
+  const { axis, position, from, to } = guide;
+  return axis === 'x' ? (
+    <line
+      className="design-guide"
+      x1={position}
+      x2={position}
+      y1={from}
+      y2={to}
+    />
+  ) : (
+    <line
+      className="design-guide"
+      x1={from}
+      x2={to}
+      y1={position}
+      y2={position}
+    />
+  );
+}
 
 function ShapeSelection({ rect }: { rect: Rect }) {
   return (
