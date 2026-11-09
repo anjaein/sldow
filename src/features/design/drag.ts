@@ -47,6 +47,7 @@ export type Drag = {
   | { kind: 'create'; id: string; anchor: Point }
   | { kind: 'line-move'; id: string; from: Connector }
   | { kind: 'line-end'; id: string; end: 'from' | 'to' }
+  | { kind: 'line-control'; id: string }
   | { kind: 'line-create'; id: string; anchor: Point }
   | { kind: 'text-move'; shape: Shape }
   | { kind: 'text-box-move'; id: string; from: TextElement }
@@ -125,17 +126,25 @@ export function getDragScenes(scene: Scene, drag: Drag): DragScenes {
     }
     case 'line-move': {
       // 시작점을 격자에 붙이고 끝점은 같은 만큼 옮겨 길이를 유지한다.
+      const moveBy = (offset: Point) =>
+        updateConnector(
+          scene,
+          drag.id,
+          translateElement(drag.from, offset) as Connector,
+        );
       const from = addPoint(drag.from.from, delta);
-      const to = addPoint(drag.from.to, delta);
-      const correction = subtractPoint(snapIf(from), from);
       return {
-        raw: updateConnector(scene, drag.id, { from, to }),
-        target: updateConnector(scene, drag.id, {
-          from: addPoint(from, correction),
-          to: addPoint(to, correction),
-        }),
+        raw: moveBy(delta),
+        target: moveBy(addPoint(delta, subtractPoint(snapIf(from), from))),
       };
     }
+    case 'line-control':
+      return {
+        raw: updateConnector(scene, drag.id, { control: drag.point }),
+        target: updateConnector(scene, drag.id, {
+          control: snapIf(drag.point),
+        }),
+      };
     case 'text-move': {
       const { shape } = drag;
       const moved = addPoint({ x: shape.text.dx, y: shape.text.dy }, delta);

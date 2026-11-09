@@ -31,15 +31,25 @@ export interface Shape {
   text: ShapeText;
 }
 
+export type ArrowHead = 'filled' | 'hollow';
+
 // 선은 도형과 연결되지 않고 두 끝점만 가진다.
 export interface Connector {
   id: string;
   kind: 'connector';
-  path: 'straight' | 'curve';
+  path: 'straight' | 'curve' | 'elbow';
   dashed: boolean;
   arrowEnd: boolean;
+  arrowHead: ArrowHead;
+  color: string;
+  strokeWidth: number;
+  // 선 중간에 표시하는 글자. 빈 문자열이면 없다.
+  label: string;
   from: Point;
   to: Point;
+  // 곡선: 곡선이 지나는 점. 없으면 S자 곡선이다.
+  // 꺾은선: 가운데 구간의 위치. 없으면 ㄱ자로 한 번만 꺾는다.
+  control?: Point;
 }
 
 export interface TextRun {
@@ -89,6 +99,12 @@ export const INK_BLACK = '#111111';
 export const INK = [INK_BLACK, '#e03131', '#1971c2', '#868e96'];
 
 export const DEFAULT_TEXT_WIDTH = 200;
+export const DEFAULT_STROKE_WIDTH = 1.5;
+export const STROKE_WIDTHS = [
+  { width: DEFAULT_STROKE_WIDTH, label: '얇게' },
+  { width: 2.5, label: '보통' },
+  { width: 4, label: '굵게' },
+];
 
 export function createShape(rect: Pick<Shape, 'x' | 'y' | 'w' | 'h'>): Shape {
   return {
@@ -111,6 +127,10 @@ export function createConnector(from: Point, to: Point): Connector {
     path: 'straight',
     dashed: false,
     arrowEnd: true,
+    arrowHead: 'filled',
+    color: INK_BLACK,
+    strokeWidth: DEFAULT_STROKE_WIDTH,
+    label: '',
     from,
     to,
   };
@@ -209,7 +229,15 @@ function withDefaults(element: SceneElement): SceneElement {
       runs: Array.isArray(element.runs) ? element.runs : [],
     };
   }
-  if (element.kind !== 'shape') return element;
+  if (element.kind === 'connector') {
+    return {
+      ...element,
+      arrowHead: element.arrowHead ?? 'filled',
+      color: element.color ?? INK_BLACK,
+      strokeWidth: element.strokeWidth ?? DEFAULT_STROKE_WIDTH,
+      label: element.label ?? '',
+    };
+  }
   return {
     ...element,
     stroke: element.stroke ?? INK_BLACK,

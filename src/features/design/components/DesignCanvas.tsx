@@ -7,6 +7,7 @@ import {
   createText,
   findElement,
   removeElement,
+  updateConnector,
   updateShape,
   updateText,
 } from '../types';
@@ -24,9 +25,10 @@ import {
 } from '../geometry';
 import type { Drag } from '../drag';
 import { getDragScenes } from '../drag';
-import { getConnectorPath } from '../connector';
+import { getConnectorPath, getControlHandle } from '../connector';
 import SceneView from './SceneView';
 import ShapeTextEditor from './ShapeTextEditor';
+import ConnectorLabelEditor from './ConnectorLabelEditor';
 import TextEditor from './TextEditor';
 
 export type Tool = 'select' | 'shape' | 'line' | 'text';
@@ -59,6 +61,8 @@ export default function DesignCanvas({
   const [drag, setDrag] = useState<Drag | null>(null);
   // 글자를 입력 중인 도형의 id
   const [editingId, setEditingId] = useState<string | null>(null);
+  // 라벨을 입력 중인 선의 id
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   // 입력 중인 자유 텍스트. 새 글자는 입력을 마칠 때 장면에 넣는다.
   const [editingText, setEditingText] = useState<TextElement | null>(null);
   // 놓은 뒤 격자 자리로 스프링처럼 붙는 동안, 놓은 순간의 장면과 진행 정도
@@ -122,6 +126,7 @@ export default function DesignCanvas({
     const textId =
       target.closest<HTMLElement>('[data-text-id]')?.dataset.textId;
     const widthHandle = target.closest('[data-text-width]');
+    const controlHandle = target.closest('[data-control]');
     const shape = findElement(scene, 'shape', shapeId);
     const connector = findElement(scene, 'connector', connectorId);
     const text = findElement(scene, 'text', textId);
@@ -133,6 +138,8 @@ export default function DesignCanvas({
       setDrag({ ...base, kind: 'resize', id: selectedId, anchor });
     } else if (end && selectedId) {
       setDrag({ ...base, kind: 'line-end', id: selectedId, end });
+    } else if (controlHandle && selectedId) {
+      setDrag({ ...base, kind: 'line-control', id: selectedId });
     } else if (widthHandle && selectedText) {
       setDrag({
         ...base,
@@ -203,6 +210,13 @@ export default function DesignCanvas({
       setEditingText(text);
       return;
     }
+    const connectorId = pressed?.closest<SVGElement>('[data-connector-id]')
+      ?.dataset.connectorId;
+    if (connectorId) {
+      onSelect(connectorId);
+      setEditingLabelId(connectorId);
+      return;
+    }
     const id = pressed?.closest<SVGElement>('[data-shape-id]')?.dataset.shapeId;
     if (!id) return;
     onSelect(id);
@@ -214,6 +228,13 @@ export default function DesignCanvas({
     const shape = findElement(scene, 'shape', id);
     if (!shape || shape.text.content === content) return;
     onChange(updateShape(scene, id, { text: { ...shape.text, content } }));
+  }
+
+  function commitLabel(id: string, label: string) {
+    setEditingLabelId(null);
+    const connector = findElement(scene, 'connector', id);
+    if (!connector || connector.label === label) return;
+    onChange(updateConnector(scene, id, { label }));
   }
 
   function finishText(text: TextElement, runs: TextRun[]) {
@@ -298,6 +319,12 @@ export default function DesignCanvas({
   }
 
   // 입력하는 동안에는 입력칸만 보이게 한다.
+  const editingLabel = findElement(scene, 'connector', editingLabelId);
+  if (editingLabel) {
+    displayScene = updateConnector(displayScene, editingLabel.id, {
+      label: '',
+    });
+  }
   if (editingText) {
     displayScene = removeElement(displayScene, editingText.id);
   }
@@ -349,6 +376,14 @@ export default function DesignCanvas({
           shape={editingShape}
           onCommit={(content) => commitText(editingShape.id, content)}
           onCancel={() => setEditingId(null)}
+        />
+      )}
+      {editingLabel && (
+        <ConnectorLabelEditor
+          key={editingLabel.id}
+          connector={editingLabel}
+          onCommit={(label) => commitLabel(editingLabel.id, label)}
+          onCancel={() => setEditingLabelId(null)}
         />
       )}
       {editingText && (
@@ -417,6 +452,7 @@ function TextSelection({ rect }: { rect: Rect }) {
 }
 
 function ConnectorSelection({ connector }: { connector: Connector }) {
+  const control = getControlHandle(connector);
   return (
     <g>
       <path className="design-selection" d={getConnectorPath(connector)} />
@@ -430,6 +466,15 @@ function ConnectorSelection({ connector }: { connector: Connector }) {
           r={HANDLE_SIZE / 2 + 1}
         />
       ))}
+      {control && (
+        <circle
+          className="design-handle design-control-handle"
+          data-control
+          cx={control.x}
+          cy={control.y}
+          r={HANDLE_SIZE / 2 + 1}
+        />
+      )}
     </g>
   );
 }

@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import type { Connector, Scene, Shape, TextElement } from '../types';
 import {
   TITLE_FONT_SIZE,
@@ -9,11 +8,19 @@ import {
 } from '../box';
 import { SCENE_FONT, measureTextHeight } from '../measure';
 import { DEFAULT_RUN_STYLE, getRootFontSize, getRunStyle } from '../text';
-import { getConnectorPath } from '../connector';
+import {
+  LABEL_FONT_SIZE,
+  LABEL_FONT_WEIGHT,
+  getArrowHead,
+  getConnectorLabel,
+  getConnectorPath,
+} from '../connector';
 import { clampTextOffset } from '../geometry';
 
 const STROKE = '#111111';
 const STROKE_WIDTH = 1.5;
+// 속이 빈 화살촉은 굵은 선에서도 속이 보이도록 테두리를 제한한다.
+const HOLLOW_HEAD_MAX_STROKE = 2;
 const DASH_ARRAYS = { solid: undefined, dashed: '6 6', dotted: '0 5' };
 
 // 장면의 도형과 선을 그린다. <svg> 안에 넣어 쓰므로 미리보기·편집 창·애니메이션이 같이 쓴다.
@@ -25,25 +32,8 @@ export default function SceneView({
   // 편집 창에서만 선을 쉽게 누를 수 있는 투명한 영역을 함께 그린다.
   interactive?: boolean;
 }) {
-  // 한 페이지에 디자인 블록이 여러 개여도 화살표 marker id가 겹치지 않게 한다.
-  const arrowId = `arrow-${useId()}`;
-
   return (
     <g fontFamily={SCENE_FONT}>
-      <defs>
-        <marker
-          id={arrowId}
-          viewBox="0 0 10 10"
-          refX="9"
-          refY="5"
-          markerWidth="8"
-          markerHeight="8"
-          markerUnits="userSpaceOnUse"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill={STROKE} />
-        </marker>
-      </defs>
       {scene.elements.map((element) => {
         if (element.kind === 'shape') {
           return <ShapeView key={element.id} shape={element} />;
@@ -55,7 +45,6 @@ export default function SceneView({
           <ConnectorView
             key={element.id}
             connector={element}
-            arrowId={arrowId}
             interactive={interactive}
           />
         );
@@ -137,27 +126,54 @@ function TextView({ text }: { text: TextElement }) {
 
 function ConnectorView({
   connector,
-  arrowId,
   interactive,
 }: {
   connector: Connector;
-  arrowId: string;
   interactive: boolean;
 }) {
-  const d = getConnectorPath(connector);
+  const { color, strokeWidth, dashed, arrowEnd, arrowHead } = connector;
+  const head = arrowEnd ? getArrowHead(connector) : null;
+  const label = getConnectorLabel(connector);
   return (
     <g data-connector-id={connector.id}>
       <path
-        d={d}
+        d={getConnectorPath(connector, head?.trim)}
         fill="none"
-        stroke={STROKE}
-        strokeWidth={STROKE_WIDTH}
+        stroke={color}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
-        strokeDasharray={connector.dashed ? '6 6' : undefined}
-        markerEnd={connector.arrowEnd ? `url(#${arrowId})` : undefined}
+        strokeLinejoin="round"
+        strokeDasharray={dashed ? '6 6' : undefined}
       />
+      {head && (
+        <path
+          d={head.d}
+          fill={arrowHead === 'filled' ? color : 'none'}
+          stroke={arrowHead === 'hollow' ? color : 'none'}
+          strokeWidth={Math.min(strokeWidth, HOLLOW_HEAD_MAX_STROKE)}
+          strokeLinejoin="round"
+        />
+      )}
+      {label && (
+        <text
+          x={label.x}
+          y={label.y}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={LABEL_FONT_SIZE}
+          fontWeight={LABEL_FONT_WEIGHT}
+          fill={color}
+        >
+          {label.text}
+        </text>
+      )}
       {/* 겹침 순서를 지키도록 선과 같은 자리에서 그린다. */}
-      {interactive && <path className="design-connector-hit" d={d} />}
+      {interactive && (
+        <path
+          className="design-connector-hit"
+          d={getConnectorPath(connector)}
+        />
+      )}
     </g>
   );
 }
