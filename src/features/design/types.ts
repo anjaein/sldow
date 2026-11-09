@@ -214,10 +214,60 @@ function fromLegacyScene({ shapes, connectors }: LegacyScene): SceneElement[] {
   return [...tag(shapes, 'shape'), ...tag(connectors, 'connector')];
 }
 
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+function isPoint(value: unknown): value is Point {
+  if (typeof value !== 'object' || value === null) return false;
+  const point = value as Partial<Point>;
+  return isFiniteNumber(point.x) && isFiniteNumber(point.y);
+}
+
 function isSceneElement(value: unknown): value is SceneElement {
   if (typeof value !== 'object' || value === null) return false;
-  const { kind } = value as Partial<SceneElement>;
-  return kind === 'shape' || kind === 'connector' || kind === 'text';
+  const element = value as Record<string, unknown>;
+  if (typeof element.id !== 'string') return false;
+  if (element.kind === 'connector') {
+    return (
+      isPoint(element.from) &&
+      isPoint(element.to) &&
+      (element.control == null || isPoint(element.control)) &&
+      (element.label == null || typeof element.label === 'string')
+    );
+  }
+  if (!isPoint(element)) return false;
+  if (element.kind === 'text') {
+    return (
+      (element.w == null || (isFiniteNumber(element.w) && element.w > 0)) &&
+      Array.isArray(element.runs) &&
+      element.runs.every((run: unknown) => {
+        if (typeof run !== 'object' || run === null) return false;
+        const item = run as Partial<TextRun>;
+        return (
+          typeof item.text === 'string' &&
+          typeof item.color === 'string' &&
+          isFiniteNumber(item.size) &&
+          item.size > 0
+        );
+      })
+    );
+  }
+  if (element.kind === 'shape') {
+    const text = element.text as Partial<ShapeText> | null | undefined;
+    return (
+      isFiniteNumber(element.w) &&
+      element.w > 0 &&
+      isFiniteNumber(element.h) &&
+      element.h > 0 &&
+      typeof text === 'object' &&
+      text !== null &&
+      typeof text.content === 'string' &&
+      isFiniteNumber(text.dx) &&
+      isFiniteNumber(text.dy) &&
+      (element.title == null || typeof element.title === 'string')
+    );
+  }
+  return false;
 }
 
 // 나중에 추가한 속성이 없는 저장본에 기본값을 채운다.
