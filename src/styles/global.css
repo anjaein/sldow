@@ -345,3 +345,347 @@
     flex-shrink: 0;
   }
 }
+
+/* 공통 전환 설정 */
+.transition-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.transition-kind {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.transition-kind button,
+.tabs-placement button {
+  flex: 1;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: var(--space-1);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.transition-kind button[aria-pressed='true'],
+.tabs-placement button[aria-pressed='true'] {
+  background: rgb(0 0 0 / 8%);
+  border-color: rgb(0 0 0 / 30%);
+}
+
+.transition-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+
+.transition-field input {
+  width: 5rem;
+  min-width: 0;
+  padding: 2px var(--space-1);
+  border: 1px solid rgb(0 0 0 / 15%);
+  border-radius: var(--space-1);
+}
+
+.transition-easing {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.transition-easing input {
+  width: 3.75rem;
+}
+
+/* 탭 블록: 블록 전체 틀. 방향과 크기는 블록별 스타일(buildTabsCss)이 정한다. */
+.bn-block:has(> .react-renderer > [data-content-type='tabs']) {
+  position: relative;
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: var(--space-2);
+}
+
+.bn-block:has(> .react-renderer > [data-content-type='tabs'])
+  > .react-renderer {
+  min-width: 0;
+}
+
+.bn-block:has(> .react-renderer > [data-content-type='tabs'])
+  > .react-renderer
+  > [data-content-type='tabs'] {
+  position: static;
+  height: 100%;
+  padding: 0;
+}
+
+.bn-block:has(> .react-renderer > [data-content-type='tabs'])
+  > .bn-block-group {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* 탭 블록: 패널은 틀만 남기고 이름 줄과 중첩 들여쓰기를 없앤다 */
+.bn-block:has(> .react-renderer > [data-content-type='tabPanel'])
+  > .react-renderer {
+  display: none;
+}
+
+.bn-block:has(> .react-renderer > [data-content-type='tabPanel'])
+  > .bn-block-group {
+  margin: 0;
+}
+
+.bn-block:has(> .react-renderer > [data-content-type='tabs'])
+  > .bn-block-group
+  > .bn-block-outer::before,
+.bn-block:has(> .react-renderer > [data-content-type='tabPanel'])
+  > .bn-block-group
+  > .bn-block-outer::before {
+  display: none;
+}
+
+@keyframes tabs-panel-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tabs-panel-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 탭 블록: 탭 막대. 바깥은 위치 기준을 만들지 않아 높이 손잡이가 블록 전체 기준으로 붙는다. */
+.tabs-bar {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  font-size: 0.875rem;
+  user-select: none;
+}
+
+.tabs-bar-inner {
+  display: flex;
+  position: relative;
+  flex: 1;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tabs-bar[data-placement='left'] .tabs-bar-inner,
+.tabs-bar[data-placement='right'] .tabs-bar-inner {
+  flex-direction: column;
+}
+
+.tabs-bar[data-placement='top'] .tabs-bar-inner {
+  border-bottom: 1px solid rgb(0 0 0 / 10%);
+}
+
+.tabs-bar[data-placement='bottom'] .tabs-bar-inner {
+  border-top: 1px solid rgb(0 0 0 / 10%);
+}
+
+.tabs-bar[data-placement='left'] .tabs-bar-inner {
+  border-right: 1px solid rgb(0 0 0 / 10%);
+}
+
+.tabs-bar[data-placement='right'] .tabs-bar-inner {
+  border-left: 1px solid rgb(0 0 0 / 10%);
+}
+
+.tabs-list {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-1);
+  overflow: auto;
+}
+
+.tabs-bar[data-placement='left'] .tabs-list,
+.tabs-bar[data-placement='right'] .tabs-list {
+  flex-direction: column;
+}
+
+.tabs-tab {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  max-width: 12rem;
+  border-radius: var(--space-1);
+}
+
+.tabs-tab:hover {
+  background: rgb(0 0 0 / 4%);
+}
+
+.tabs-tab[data-active] {
+  background: rgb(0 0 0 / 8%);
+  font-weight: 600;
+}
+
+.tabs-tab[data-dragging] {
+  opacity: 0.5;
+}
+
+.tabs-bar[data-placement='left'] .tabs-tab,
+.tabs-bar[data-placement='right'] .tabs-tab {
+  max-width: none;
+}
+
+.tabs-tab-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tabs-tab-input {
+  width: 7rem;
+  min-width: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--space-1);
+  background: var(--color-document-background);
+  outline: 1px solid rgb(0 0 0 / 25%);
+}
+
+.tabs-tab-delete {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 2px;
+  border-radius: var(--space-1);
+  color: rgb(0 0 0 / 45%);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.tabs-tab:hover .tabs-tab-delete,
+.tabs-tab-delete:focus-visible {
+  opacity: 1;
+}
+
+.tabs-tab-delete:hover,
+.tabs-icon-button:hover {
+  background: rgb(0 0 0 / 8%);
+}
+
+.tabs-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1);
+}
+
+.tabs-icon-button {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--space-1);
+  color: rgb(0 0 0 / 55%);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 탭 블록: 시험판 크기 조절 손잡이 */
+.tabs-bar-resize,
+.tabs-height-resize {
+  position: absolute;
+  z-index: 1;
+}
+
+.tabs-bar-resize:hover,
+.tabs-height-resize:hover {
+  background: rgb(34 139 230 / 35%);
+}
+
+.tabs-bar[data-placement='top'] .tabs-bar-resize,
+.tabs-bar[data-placement='bottom'] .tabs-bar-resize {
+  right: 0;
+  left: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.tabs-bar[data-placement='top'] .tabs-bar-resize {
+  bottom: -3px;
+}
+
+.tabs-bar[data-placement='bottom'] .tabs-bar-resize {
+  top: -3px;
+}
+
+.tabs-bar[data-placement='left'] .tabs-bar-resize,
+.tabs-bar[data-placement='right'] .tabs-bar-resize {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.tabs-bar[data-placement='left'] .tabs-bar-resize {
+  right: -3px;
+}
+
+.tabs-bar[data-placement='right'] .tabs-bar-resize {
+  left: -3px;
+}
+
+/* 탭 막대 안이 아니라 블록 전체의 아래쪽에 붙는다 */
+.tabs-height-resize {
+  right: 0;
+  bottom: -3px;
+  left: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+/* 탭 블록: 설정 창 */
+.tabs-settings {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(100vh - var(--space-4));
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: var(--space-2);
+  background: var(--color-document-background);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+  color: var(--color-document-text);
+  font-family: var(--font-document);
+}
+
+.tabs-settings-title {
+  margin: 0;
+  color: rgb(0 0 0 / 55%);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tabs-placement {
+  display: flex;
+  gap: var(--space-1);
+}

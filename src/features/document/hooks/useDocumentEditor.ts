@@ -7,10 +7,15 @@ import { saveDocument } from '../storage';
 import { useAutoSave } from '../../../hooks/useAutoSave';
 import { useSaveShortcut } from '../../../hooks/useSaveShortcut';
 import { designBlock } from '../../design/designBlock';
+import { tabPanelBlock, tabsBlock } from '../../tabs/tabsBlock';
 
 // 기본 블록에 디자인 블록을 더한 문서 스키마
 export const schema = BlockNoteSchema.create().extend({
-  blockSpecs: { design: designBlock() },
+  blockSpecs: {
+    design: designBlock(),
+    tabs: tabsBlock(),
+    tabPanel: tabPanelBlock(),
+  },
 });
 
 export function useDocumentEditor(document: DocumentPreview) {

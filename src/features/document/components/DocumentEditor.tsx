@@ -8,6 +8,11 @@ import {
   SuggestionMenuController,
 } from '@blocknote/react';
 import '@blocknote/mantine/style.css';
+import {
+  createTabsBlock,
+  isInsideTabs,
+  moveCursorToPanel,
+} from '../../tabs/tabs';
 import type { DocumentEditor as Editor } from '../types';
 
 interface DocumentEditorProps {
@@ -40,5 +45,23 @@ function getSlashMenuItems(editor: Editor) {
         insertOrUpdateBlockForSlashMenu(editor, { type: 'design' });
       },
     },
+    // 탭 안의 탭은 지원하지 않는다.
+    ...(isInsideTabs(editor)
+      ? []
+      : [
+          {
+            title: '탭',
+            subtext: '내용을 탭으로 나누어 보기',
+            aliases: ['tabs', 'tab', '탭', '탭 블록'],
+            group: '레이아웃',
+            onItemClick: () => {
+              const block = insertOrUpdateBlockForSlashMenu(
+                editor,
+                createTabsBlock(),
+              );
+              moveCursorToPanel(editor, block.children[0].id);
+            },
+          },
+        ]),
   ];
 }
