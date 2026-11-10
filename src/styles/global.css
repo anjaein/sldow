@@ -600,6 +600,15 @@
   cursor: pointer;
 }
 
+/* 탭 블록: 코드 모핑의 임시 층. 패널 위에 겹쳐 그리고 입력은 그대로 통과시킨다. */
+.tabs-morph-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* 탭 블록: 시험판 크기 조절 손잡이 */
 .tabs-bar-resize,
 .tabs-height-resize {
