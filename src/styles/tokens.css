@@ -17,6 +17,15 @@
   --document-title-gap: var(--space-8);
   --document-block-gap: var(--space-2);
 
+  /* 본문 블록 앞 간격. BlockNote가 블록마다 위아래 3px(제목은 위 18px)를 이미 주므로
+     여기 값은 그 위에 더해지는 몫이다. */
+  --block-gap: var(--space-1);
+  --block-gap-list: 0px;
+  --block-gap-wide: var(--space-3);
+  --block-gap-h1: var(--space-6);
+  --block-gap-h2: var(--space-4);
+  --block-gap-h3: var(--space-2);
+
   /* 시스템 글꼴 사용: 외부 글꼴 다운로드 없음 */
   --font-document: ui-sans-serif, system-ui, sans-serif;
   --font-size-body: 1rem;
