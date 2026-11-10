@@ -40,6 +40,142 @@
   margin-top: var(--document-block-gap);
 }
 
+/* 본문 블록 간격: 값은 tokens.css의 --block-gap-* 에서 정한다.
+   블록 종류별로 --block-space만 고르고, 실제 간격은 바깥 상자(.bn-block-outer)의
+   padding-top 하나로 준다.
+   - .bn-block-content의 padding은 건드리지 않는다. 사이드 메뉴(+, 손잡이)는 안쪽
+     상자(.bn-block) 위끝에 BlockNote가 제목 단계별로 맞춘 보정값을 더해 붙으므로,
+     내용 쪽 padding을 바꾸면 메뉴가 첫 줄과 어긋난다. 바깥 padding은 .bn-block을
+     통째로 내리므로 정렬이 그대로다.
+   - margin 대신 padding이라 블록 사이에 어느 블록에도 속하지 않는 빈 틈이 없다.
+     (마우스 판정용 띠는 아래 .bn-block::before 참고)
+   모든 규칙을 :where()로 감싸 우선순위를 0으로 맞추고, 아래에 적을수록 이기게 한다. */
+:where(.bn-editor .bn-block-outer) {
+  --block-space: var(--block-gap);
+  padding-top: var(--block-space);
+}
+
+/* 목록 항목끼리, 목록 항목 바로 아래 첫 하위 목록은 촘촘하게 */
+:where(
+  .bn-block-outer:has(> .bn-block > [data-content-type$='ListItem'])
+    + .bn-block-outer:has(> .bn-block > [data-content-type$='ListItem']),
+  .bn-block-outer:has(> .bn-block > [data-content-type$='ListItem'])
+    > .bn-block
+    > .bn-block-group
+    > .bn-block-outer:first-child:has(
+      > .bn-block > [data-content-type$='ListItem']
+    )
+) {
+  --block-space: var(--block-gap-list);
+}
+
+/* 코드·인용·미디어·표·디자인·탭 블록은 앞뒤로 숨 쉴 틈을 더 준다 */
+:where(
+  .bn-block-outer:has(
+    > .bn-block
+      > :is(
+        [data-content-type='codeBlock'],
+        [data-content-type='quote'],
+        [data-content-type='image'],
+        [data-content-type='video'],
+        [data-content-type='audio'],
+        [data-content-type='file'],
+        [data-content-type='table']
+      ),
+    > .bn-block
+      > .react-renderer
+      > :is([data-content-type='design'], [data-content-type='tabs'])
+  ),
+  .bn-block-outer:has(
+      > .bn-block
+        > :is(
+          [data-content-type='codeBlock'],
+          [data-content-type='quote'],
+          [data-content-type='image'],
+          [data-content-type='video'],
+          [data-content-type='audio'],
+          [data-content-type='file'],
+          [data-content-type='table']
+        ),
+      > .bn-block
+        > .react-renderer
+        > :is([data-content-type='design'], [data-content-type='tabs'])
+    )
+    + .bn-block-outer
+) {
+  --block-space: var(--block-gap-wide);
+}
+
+/* 제목 앞은 넉넉하게: 제목 1 > 2 > 3.
+   BlockNote는 기본값인 1단계 제목에 data-level을 붙이지 않으므로 1단계를 기본으로 둔다. */
+:where(.bn-block-outer:has(> .bn-block > [data-content-type='heading'])) {
+  --block-space: var(--block-gap-h1);
+}
+
+:where(
+  .bn-block-outer:has(
+    > .bn-block > [data-content-type='heading'][data-level='2']
+  )
+) {
+  --block-space: var(--block-gap-h2);
+}
+
+:where(
+  .bn-block-outer:has(
+    > .bn-block
+      > [data-content-type='heading']:is(
+        [data-level='3'],
+        [data-level='4'],
+        [data-level='5'],
+        [data-level='6']
+      )
+  )
+) {
+  --block-space: var(--block-gap-h3);
+}
+
+/* 문서 첫 블록, 탭 패널 틀, 탭 패널의 첫 블록은 위 간격을 두지 않는다.
+   (탭 패널 안쪽 여백은 탭 블록 규칙이 따로 정한다) */
+:where(
+  .bn-editor > .bn-block-group > .bn-block-outer:first-child,
+  .bn-block-outer:has(
+    > .bn-block > .react-renderer > [data-content-type='tabPanel']
+  ),
+  .bn-block-outer:has(
+      > .bn-block > .react-renderer > [data-content-type='tabPanel']
+    )
+    > .bn-block
+    > .bn-block-group
+    > .bn-block-outer:first-child
+) {
+  --block-space: 0px;
+}
+
+/* 중첩 블록 왼쪽 세로선은 글자 위치부터 그려져 위 간격만큼 끊기므로, 바깥 상자 위끝부터 그린다 */
+:where(.bn-block-group .bn-block-group > .bn-block-outer)::before {
+  top: 0;
+}
+
+/* 간격 위에서도 마우스가 그 블록 위로 잡히게 한다. BlockNote는 마우스 아래 요소에서
+   .bn-block을 찾아 사이드 메뉴를 붙이는데, 바깥 padding은 .bn-block 밖이라 그대로 두면
+   간격 위에서 메뉴가 앞 블록(중첩이면 부모 블록)에 머문다. 그래서 .bn-block 맨 위에
+   보이지 않는 띠를 간격만큼 위로 끌어올려 덮는다. 흐름 안의 띠라 자리를 차지하지 않고
+   위치 기준(position)도 새로 만들지 않는다. */
+:where(.bn-editor .bn-block)::before {
+  content: '';
+  flex: none;
+  height: var(--block-space, 0px);
+  margin-top: calc(-1 * var(--block-space, 0px));
+}
+
+/* 탭 블록은 배치에 따라 방향이 바뀌는 flex 틀이고 이미 위치 기준이 있어 띠를 절대 위치로 붙인다 */
+:where(.bn-block:has(> .react-renderer > [data-content-type='tabs']))::before {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(-1 * var(--block-space, 0px) - 1px);
+  margin-top: 0;
+}
+
 /* 디자인 블록: 본문 미리보기 */
 .design-block {
   display: block;
