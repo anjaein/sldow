@@ -95,6 +95,84 @@ function repairOnce(tr: Transaction): boolean {
   return repaired;
 }
 
+// 탭 블록을 패널의 내용으로 풀어 놓는다. 탭 이름은 굵은 문단으로 남겨 무엇이 어느 탭이었는지 보이게 한다.
+function unwrapTabs(tr: Transaction, tabs: PMNode): PMNode[] {
+  const { blockContainer, paragraph } = tr.doc.type.schema.nodes;
+  const bold = tr.doc.type.schema.marks.bold;
+  const blocks: PMNode[] = [];
+  if (!hasChildren(tabs)) return blocks;
+  tabs.lastChild!.forEach((panel) => {
+    const name = String(panel.firstChild?.attrs.name ?? '');
+    if (name) {
+      const title = tr.doc.type.schema.text(name, bold ? [bold.create()] : []);
+      blocks.push(blockContainer.create(null, paragraph.create(null, title)));
+    }
+    if (hasChildren(panel)) {
+      panel.lastChild!.forEach((child) => blocks.push(child));
+    }
+  });
+  return blocks;
+}
+
+// 붙여넣기로 바뀐 범위(붙인 뒤 문서 기준). 슬래시 메뉴처럼 탭 안의 탭은 만들지 않으려고 쓴다.
+function pastedRanges(transactions: readonly Transaction[]) {
+  const ranges: { from: number; to: number }[] = [];
+  transactions.forEach((transaction, index) => {
+    if (transaction.getMeta('uiEvent') !== 'paste') return;
+    const later = transactions.slice(index + 1);
+    const mapToEnd = (pos: number, assoc: number) =>
+      later.reduce((mapped, next) => next.mapping.map(mapped, assoc), pos);
+    transaction.mapping.maps.forEach((map, step) => {
+      const rest = transaction.mapping.slice(step + 1);
+      map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+        ranges.push({
+          from: mapToEnd(rest.map(newStart, -1), -1),
+          to: mapToEnd(rest.map(newEnd, 1), 1),
+        });
+      });
+    });
+  });
+  return ranges;
+}
+
+// 다른 탭 블록 속에 들어간 탭 블록인가
+function isNestedTabs(doc: PMNode, node: PMNode, pos: number) {
+  if (blockType(node) !== 'tabs') return false;
+  const $pos = doc.resolve(pos);
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if (blockType($pos.node(depth)) === 'tabs') return true;
+  }
+  return false;
+}
+
+// 붙인 범위 안에서 다른 탭 블록 속에 들어간 탭 블록을 하나 푼다.
+// 끌어 놓기로 생긴 탭 안의 탭은 이 규칙의 대상이 아니다.
+function unwrapPastedNestedTabs(
+  tr: Transaction,
+  ranges: { from: number; to: number }[],
+): boolean {
+  for (const range of ranges) {
+    const from = tr.mapping.map(range.from, -1);
+    const to = Math.min(tr.mapping.map(range.to, 1), tr.doc.content.size);
+    let found: number | null = null;
+    tr.doc.nodesBetween(from, to, (node, pos) => {
+      if (found !== null || node.isTextblock) return false;
+      if (isNestedTabs(tr.doc, node, pos)) found = pos;
+      return found === null;
+    });
+    if (found === null) continue;
+    const node = tr.doc.nodeAt(found)!;
+    const blocks = unwrapTabs(tr, node);
+    tr.replaceWith(
+      found,
+      found + node.nodeSize,
+      blocks.length > 0 ? blocks : createEmptyBlock(tr),
+    );
+    return true;
+  }
+  return false;
+}
+
 // 패널 경계를 넘는 기본 키 동작을 막는다.
 function handleBoundaryKey(view: EditorView, event: KeyboardEvent): boolean {
   if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) {
@@ -224,6 +302,13 @@ export const tabsExtension = createExtension({
           return null;
         }
         const tr = newState.tr;
+        // 탭 안에 붙인 탭 블록은 슬래시 메뉴처럼 허용하지 않고 내용으로 푼다. 하나씩 풀고 다시 찾는다.
+        const pasted = pastedRanges(transactions);
+        for (
+          let attempt = 0;
+          attempt < 32 && unwrapPastedNestedTabs(tr, pasted);
+          attempt++
+        );
         // 고칠 때마다 문서가 짧아지거나 채워지므로 금방 끝난다. 혹시 모를 무한 반복만 막는다.
         for (let attempt = 0; attempt < 32 && repairOnce(tr); attempt++);
         return tr.docChanged ? tr : null;

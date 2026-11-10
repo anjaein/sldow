@@ -7,6 +7,7 @@ import { saveDocument } from '../storage';
 import { useAutoSave } from '../../../hooks/useAutoSave';
 import { useSaveShortcut } from '../../../hooks/useSaveShortcut';
 import { designBlock } from '../../design/designBlock';
+import { blockSelectionExtension } from '../../selection/blockSelectionExtension';
 import { tabPanelBlock, tabsBlock } from '../../tabs/tabsBlock';
 
 // 기본 블록에 디자인 블록을 더한 문서 스키마
@@ -22,6 +23,8 @@ export function useDocumentEditor(document: DocumentPreview) {
   const editor = useCreateBlockNote({
     schema,
     dictionary: ko,
+    // 노션식 블록 선택과 블록 붙여넣기
+    extensions: [blockSelectionExtension()],
     domAttributes: { editor: { style: 'padding-inline: 0;' } },
     // 빈 배열이면 undefined로 넘겨 에디터의 기본 빈 블록을 사용한다.
     initialContent: document.blocks.length > 0 ? document.blocks : undefined,
