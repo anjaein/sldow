@@ -452,24 +452,6 @@
   display: none;
 }
 
-@keyframes tabs-panel-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes tabs-panel-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
 /* 탭 블록: 탭 막대. 바깥은 위치 기준을 만들지 않아 높이 손잡이가 블록 전체 기준으로 붙는다. */
 .tabs-bar {
   display: flex;
@@ -511,11 +493,22 @@
 
 .tabs-list {
   display: flex;
+  position: relative;
   flex: 1;
   gap: 2px;
   min-width: 0;
   padding: var(--space-1);
   overflow: auto;
+}
+
+/* 열린 탭 표시. 탭과 따로 두어 부드러운 전환에서 다음 탭으로 미끄러질 수 있다. */
+.tabs-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--space-1);
+  background: rgb(0 0 0 / 8%);
+  pointer-events: none;
 }
 
 .tabs-bar[data-placement='left'] .tabs-list,
@@ -525,6 +518,7 @@
 
 .tabs-tab {
   display: flex;
+  position: relative;
   flex-shrink: 0;
   align-items: center;
   max-width: 12rem;
@@ -536,7 +530,6 @@
 }
 
 .tabs-tab[data-active] {
-  background: rgb(0 0 0 / 8%);
   font-weight: 600;
 }
 

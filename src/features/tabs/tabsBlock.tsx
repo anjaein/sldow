@@ -1,7 +1,7 @@
 import { createReactBlockSpec } from '@blocknote/react';
 import type { DocumentEditor } from '../document/types';
 import {
-  DEFAULT_TRANSITION,
+  INSTANT_TRANSITION,
   serializeTransition,
 } from '../transition/transition';
 import TabsBlockView from './components/TabsBlockView';
@@ -16,7 +16,8 @@ export const tabsBlock = createReactBlockSpec(
       // 시험판 크기 조절 값(px). 0이면 기본 크기를 쓴다.
       barSize: { default: 0 },
       height: { default: 0 },
-      transition: { default: serializeTransition(DEFAULT_TRANSITION) },
+      // 탭 전환의 기본은 노션처럼 즉시 바뀌는 것이다.
+      transition: { default: serializeTransition(INSTANT_TRANSITION) },
     },
     content: 'none',
   },

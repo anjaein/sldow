@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,13 +10,19 @@ import {
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { DocumentEditor } from '../../document/types';
+import {
+  opaqueBackgroundBehind,
+  shouldAnimate,
+  toAnimationTiming,
+} from '../../transition/motion';
 import type { TransitionSetting } from '../../transition/transition';
 import {
+  INSTANT_TRANSITION,
   getTransitionDuration,
   parseTransition,
   serializeTransition,
 } from '../../transition/transition';
-import type { TabInfo, TabsPlacement } from '../tabs';
+import type { LeavingPanel, TabInfo, TabsPlacement } from '../tabs';
 import {
   buildTabsCss,
   clampBarSize,
@@ -43,6 +50,40 @@ interface TabsBlockViewProps {
 
 type ResizeTarget = 'barSize' | 'height';
 
+// 부드러운 전환 하나. 전환 직전에 잰 묶음 높이와 이전 패널 높이를 함께 기억한다.
+interface PanelSwitch extends LeavingPanel {
+  fromHeight: number;
+  fromPanelHeight: number;
+}
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const boxFrames = (box: Box) => ({
+  transform: `translate(${box.x}px, ${box.y}px)`,
+  width: `${box.width}px`,
+  height: `${box.height}px`,
+});
+
+// 탭 블록의 패널 묶음과 그 안의 패널. 탭 막대에서 위로 올라가 찾는다.
+function findGroup(from: Element | null): HTMLElement | null {
+  return (
+    from
+      ?.closest('.bn-block')
+      ?.querySelector<HTMLElement>(':scope > .bn-block-group') ?? null
+  );
+}
+
+function findPanel(group: Element, id: string): HTMLElement | null {
+  return group.querySelector<HTMLElement>(
+    `:scope > .bn-block-outer[data-id="${CSS.escape(id)}"]`,
+  );
+}
+
 // 패널 이름은 자식 블록에 있어, 탭 블록의 노드 뷰는 이름이 바뀌어도 다시 그려지지 않는다.
 // 문서 변경을 직접 구독해 읽는다.
 function useTabs(editor: DocumentEditor, tabsId: string): TabInfo[] {
@@ -64,37 +105,188 @@ export default function TabsBlockView({
   const { placement, barSize, height } = props;
   const tabs = useTabs(editor, tabsId);
   const transition = useMemo(
-    () => parseTransition(props.transition),
+    () => parseTransition(props.transition, INSTANT_TRANSITION),
     [props.transition],
   );
-  const duration = getTransitionDuration(transition);
 
   // 어느 탭이 열려 있는지는 화면 상태라 저장하지 않는다. null이면 첫 탭이다.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [leavingId, setLeavingId] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState<PanelSwitch | null>(null);
   const [order, setOrder] = useState<string[] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<Partial<
     Record<ResizeTarget, number>
   > | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const indicatorState = useRef<{
+    activeId: string | null;
+    box: Box | null;
+    slide: boolean;
+    animation: Animation | null;
+  }>({ activeId: null, box: null, slide: false, animation: null });
   const didDrag = useRef(false);
 
   const activeId = tabs.some((tab) => tab.id === selectedId)
     ? selectedId
     : (tabs[0]?.id ?? null);
+  const fitsContent = (resizing?.height ?? height) === 0;
 
-  useEffect(() => {
-    if (!leavingId) return;
-    const timer = setTimeout(() => setLeavingId(null), duration);
-    return () => clearTimeout(timer);
-  }, [leavingId, duration]);
+  // 전환 직전의 모습을 잰다. 즉시 전환이거나 잴 수 없으면 null이다.
+  const measureSwitch = (fromId: string | null): PanelSwitch | null => {
+    if (!fromId || !shouldAnimate(transition)) return null;
+    const group = findGroup(barRef.current);
+    const panel = group && findPanel(group, fromId);
+    if (!group || !panel || panel.getClientRects().length === 0) return null;
+    const groupRect = group.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    return {
+      id: fromId,
+      // 절대 위치는 묶음의 안쪽 테두리와 스크롤된 내용 기준이다.
+      top: panelRect.top - groupRect.top - group.clientTop + group.scrollTop,
+      left:
+        panelRect.left - groupRect.left - group.clientLeft + group.scrollLeft,
+      width: panelRect.width,
+      // 전환 중에 다시 누르면 움직이던 높이 그대로에서 이어 간다.
+      fromHeight: groupRect.height,
+      fromPanelHeight: panelRect.height,
+    };
+  };
 
   const show = (id: string) => {
     if (id === activeId) return;
-    setLeavingId(duration > 0 ? activeId : null);
+    const next = measureSwitch(activeId);
+    indicatorState.current.slide = next !== null;
+    setLeaving(next);
     setSelectedId(id);
   };
+
+  // 부드러운 전환: 이전 패널은 불투명하게 깔아 두고 새 패널을 바탕색과 함께 서서히 덮는다.
+  // 패널 묶음의 높이도 같은 시간과 곡선으로 이전 높이에서 새 높이로 옮긴다.
+  const startSwitch = useEffectEvent((current: PanelSwitch) => {
+    const group = findGroup(barRef.current);
+    const entering = activeId && group && findPanel(group, activeId);
+    const animations: Animation[] = [];
+    const timing = toAnimationTiming(transition);
+    if (group && entering) {
+      if (fitsContent) {
+        // 묶음은 flex 항목이라 height만으로는 크기가 정해지지 않는다.
+        // 최소·최대 높이를 함께 움직이면 막대 위치와 관계없이 높이가 고정된다.
+        const toHeight = group.getBoundingClientRect().height;
+        const fixed = (value: number) => ({
+          minHeight: `${value}px`,
+          maxHeight: `${value}px`,
+        });
+        animations.push(
+          group.animate([fixed(current.fromHeight), fixed(toHeight)], timing),
+        );
+      }
+      // 새 패널이 이전 패널을 끝까지 덮도록 그동안은 이전 패널 높이만큼 늘인다.
+      const cover = {
+        minHeight: `${current.fromPanelHeight}px`,
+        backgroundColor: opaqueBackgroundBehind(group),
+      };
+      animations.push(
+        entering.animate(
+          [
+            { ...cover, opacity: 0 },
+            { ...cover, opacity: 1 },
+          ],
+          timing,
+        ),
+      );
+    }
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setLeaving((latest) => (latest === current ? null : latest));
+    };
+    Promise.all(animations.map((animation) => animation.finished)).then(
+      finish,
+      () => {},
+    );
+    // 요소가 다시 그려져 애니메이션이 사라져도 전환 상태가 남지 않게 한다.
+    const timer = setTimeout(finish, getTransitionDuration(transition) + 250);
+    return () => {
+      done = true;
+      clearTimeout(timer);
+      animations.forEach((animation) => animation.cancel());
+    };
+  });
+  useLayoutEffect(() => {
+    if (leaving) return startSwitch(leaving);
+  }, [leaving]);
+
+  // 열린 탭 표시. 부드러운 전환에서는 이전 탭 자리에서 새 탭으로 미끄러진다.
+  const placeIndicator = useEffectEvent(() => {
+    const list = listRef.current;
+    const indicator = indicatorRef.current;
+    const state = indicatorState.current;
+    const tab =
+      activeId &&
+      list?.querySelector<HTMLElement>(
+        `[data-tab-id="${CSS.escape(activeId)}"]`,
+      );
+    if (!list || !indicator || !tab) return;
+
+    const box: Box = {
+      x: tab.offsetLeft,
+      y: tab.offsetTop,
+      width: tab.offsetWidth,
+      height: tab.offsetHeight,
+    };
+    const slide =
+      state.slide &&
+      state.box !== null &&
+      state.activeId !== null &&
+      state.activeId !== activeId;
+    state.slide = false;
+    state.activeId = activeId;
+    if (!slide && JSON.stringify(state.box) === JSON.stringify(box)) return;
+
+    const running = state.animation?.playState === 'running';
+    let from = state.box;
+    if (slide && running) {
+      // 움직이던 중에 다시 누르면 지금 보이는 자리에서 이어 간다.
+      const rect = indicator.getBoundingClientRect();
+      const listRect = list.getBoundingClientRect();
+      from = {
+        x: rect.left - listRect.left - list.clientLeft + list.scrollLeft,
+        y: rect.top - listRect.top - list.clientTop + list.scrollTop,
+        width: rect.width,
+        height: rect.height,
+      };
+    }
+    // 미끄러지는 중의 크기 변화는 도착 자리만 고친다.
+    if (slide || !running) {
+      state.animation?.cancel();
+      state.animation = null;
+    }
+    state.box = box;
+    Object.assign(indicator.style, boxFrames(box));
+    if (slide && from) {
+      state.animation = indicator.animate([boxFrames(from), boxFrames(box)], {
+        ...toAnimationTiming(transition),
+        fill: 'none',
+      });
+    }
+  });
+  useLayoutEffect(() => placeIndicator());
+  // 이름 편집·글꼴 굵기 변화처럼 다시 그려지지 않는 크기 변화도 따라간다.
+  const tabKey = tabs.map((tab) => tab.id).join(' ');
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const observer = new ResizeObserver(() => placeIndicator());
+    observer.observe(list);
+    list
+      .querySelectorAll('[data-tab-id]')
+      .forEach((tab) => observer.observe(tab));
+    return () => observer.disconnect();
+  }, [tabKey, placement]);
 
   // 탭을 눌러 패널을 바꿀 때 커서가 이 탭 블록 안에 있었다면 새 패널로 함께 옮긴다.
   const selectTab = (id: string) => {
@@ -269,9 +461,7 @@ export default function TabsBlockView({
     barSize: resizing?.barSize ?? barSize,
     height: resizing?.height ?? height,
     activeId,
-    leavingId,
-    duration,
-    transition,
+    leaving,
   });
 
   return (
@@ -279,12 +469,18 @@ export default function TabsBlockView({
       <style>{css}</style>
       <div className="tabs-bar-inner">
         <div
+          ref={listRef}
           className="tabs-list"
           role="tablist"
           aria-orientation={
             isVerticalBar(placement) ? 'vertical' : 'horizontal'
           }
         >
+          <span
+            ref={indicatorRef}
+            className="tabs-indicator"
+            aria-hidden="true"
+          />
           {orderedTabs.map((tab) => (
             <TabItem
               key={tab.id}

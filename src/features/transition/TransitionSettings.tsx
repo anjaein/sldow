@@ -1,21 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { TransitionEasing, TransitionSetting } from './transition';
-import {
-  DEFAULT_STEPS,
-  DEFAULT_TRANSITION,
-  MAX_DURATION,
-  clampUnit,
-} from './transition';
+import { DEFAULT_TRANSITION, MAX_DURATION, clampUnit } from './transition';
 
 interface TransitionSettingsProps {
   value: TransitionSetting;
   onChange: (next: TransitionSetting) => void;
 }
 
-const DEFAULT_EASING: TransitionEasing =
-  DEFAULT_TRANSITION.kind === 'smooth'
-    ? DEFAULT_TRANSITION.easing
-    : [0.25, 0.1, 0.25, 1.0];
+type SmoothTransition = Extract<TransitionSetting, { kind: 'smooth' }>;
 
 const clampDuration = (value: number) =>
   Math.min(MAX_DURATION, Math.max(0, Math.round(value)));
@@ -25,6 +17,9 @@ export default function TransitionSettings({
   value,
   onChange,
 }: TransitionSettingsProps) {
+  // 즉시로 바꿨다가 다시 부드럽게로 돌아오면 방금 쓰던 시간과 곡선을 되살린다.
+  const lastSmooth = useRef<SmoothTransition | null>(null);
+
   const setEasing = (index: number, next: number) => {
     if (value.kind !== 'smooth') return;
     const easing: TransitionEasing = [...value.easing];
@@ -37,69 +32,54 @@ export default function TransitionSettings({
       <div className="transition-kind" role="group" aria-label="전환 방식">
         <button
           type="button"
+          aria-pressed={value.kind === 'instant'}
+          onClick={() => {
+            if (value.kind === 'instant') return;
+            lastSmooth.current = value;
+            onChange({ kind: 'instant' });
+          }}
+        >
+          즉시
+        </button>
+        <button
+          type="button"
           aria-pressed={value.kind === 'smooth'}
           onClick={() => {
             if (value.kind === 'smooth') return;
-            onChange({
-              kind: 'smooth',
-              duration: value.duration,
-              easing: DEFAULT_EASING,
-            });
+            onChange(lastSmooth.current ?? DEFAULT_TRANSITION);
           }}
         >
           부드럽게
         </button>
-        <button
-          type="button"
-          aria-pressed={value.kind === 'steps'}
-          onClick={() => {
-            if (value.kind === 'steps') return;
-            onChange({
-              kind: 'steps',
-              duration: value.duration,
-              steps: DEFAULT_STEPS,
-            });
-          }}
-        >
-          계단식
-        </button>
       </div>
 
-      <NumberField
-        label="시간(ms)"
-        value={value.duration}
-        min={0}
-        max={MAX_DURATION}
-        step={50}
-        normalize={clampDuration}
-        onCommit={(duration) => onChange({ ...value, duration })}
-      />
-
-      {value.kind === 'smooth' ? (
-        <div className="transition-easing">
-          {(['x1', 'y1', 'x2', 'y2'] as const).map((label, index) => (
-            <NumberField
-              key={label}
-              label={label}
-              value={value.easing[index]}
-              step={0.05}
-              // x는 0~1만 가능하고, y는 튀어 오르는 곡선을 위해 범위를 두지 않는다.
-              {...(index % 2 === 0
-                ? { min: 0, max: 1, normalize: clampUnit }
-                : {})}
-              onCommit={(next) => setEasing(index, next)}
-            />
-          ))}
-        </div>
-      ) : (
-        <NumberField
-          label="단계 수"
-          value={value.steps}
-          min={1}
-          step={1}
-          normalize={(next) => Math.max(1, Math.round(next))}
-          onCommit={(steps) => onChange({ ...value, steps })}
-        />
+      {value.kind === 'smooth' && (
+        <>
+          <NumberField
+            label="시간(ms)"
+            value={value.duration}
+            min={0}
+            max={MAX_DURATION}
+            step={50}
+            normalize={clampDuration}
+            onCommit={(duration) => onChange({ ...value, duration })}
+          />
+          <div className="transition-easing">
+            {(['x1', 'y1', 'x2', 'y2'] as const).map((label, index) => (
+              <NumberField
+                key={label}
+                label={label}
+                value={value.easing[index]}
+                step={0.05}
+                // x는 0~1만 가능하고, y는 튀어 오르는 곡선을 위해 범위를 두지 않는다.
+                {...(index % 2 === 0
+                  ? { min: 0, max: 1, normalize: clampUnit }
+                  : {})}
+                onCommit={(next) => setEasing(index, next)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
