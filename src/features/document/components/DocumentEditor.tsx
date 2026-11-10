@@ -4,10 +4,14 @@ import {
 } from '@blocknote/core/extensions';
 import { BlockNoteView } from '@blocknote/mantine';
 import {
+  FormattingToolbarController,
   getDefaultReactSlashMenuItems,
+  SideMenuController,
   SuggestionMenuController,
 } from '@blocknote/react';
 import '@blocknote/mantine/style.css';
+import BlockAwareFormattingToolbar from '../../selection/components/BlockAwareFormattingToolbar';
+import BlockSideMenu from '../../selection/components/BlockSideMenu';
 import {
   createTabsBlock,
   isInsideTabs,
@@ -22,7 +26,18 @@ interface DocumentEditorProps {
 export default function DocumentEditor({ editor }: DocumentEditorProps) {
   return (
     // 기본 슬래시 메뉴를 끄고, 디자인 블록을 더한 메뉴로 바꾼다.
-    <BlockNoteView editor={editor} theme="light" slashMenu={false}>
+    // 블록 손잡이는 누르면 블록을 고르고, 블록을 고른 동안에는 글 서식 막대를 띄우지 않는다.
+    <BlockNoteView
+      editor={editor}
+      theme="light"
+      slashMenu={false}
+      sideMenu={false}
+      formattingToolbar={false}
+    >
+      <SideMenuController sideMenu={BlockSideMenu} />
+      <FormattingToolbarController
+        formattingToolbar={BlockAwareFormattingToolbar}
+      />
       <SuggestionMenuController
         triggerCharacter="/"
         getItems={async (query) =>

@@ -45,5 +45,8 @@ export const designBlock = createReactBlockSpec(
         </>
       );
     },
+    // 다른 앱에 붙일 때는 그림 대신 자리 표시만 남긴다.
+    // 앱 안에서 붙일 때는 내부 HTML에 장면이 그대로 담겨 이 값을 쓰지 않는다.
+    toExternalHTML: () => <p>[디자인]</p>,
   },
 );

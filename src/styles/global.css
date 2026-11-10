@@ -402,6 +402,38 @@
   width: 3.75rem;
 }
 
+/* 블록 선택: 노션처럼 고른 블록 전체(자식 포함)를 옅은 파랑으로 덮는다 */
+.bn-block-outer.block-selected > .bn-block {
+  position: relative;
+}
+
+.bn-block-outer.block-selected > .bn-block::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: 4px;
+  background: rgb(35 131 226 / 14%);
+  pointer-events: none;
+}
+
+/* 끌어 고르기 사각형. 위치와 크기는 끄는 동안 스크립트가 정한다. */
+.marquee-selection {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  border: 1px solid rgb(35 131 226 / 45%);
+  border-radius: 2px;
+  background: rgb(35 131 226 / 10%);
+  pointer-events: none;
+}
+
+/* 여러 블록을 고르면 브라우저의 글 선택 색이 겹쳐 보이므로 감춘다 */
+.block-selected ::selection {
+  background: transparent;
+}
+
 /* 탭 블록: 블록 전체 틀. 방향과 크기는 블록별 스타일(buildTabsCss)이 정한다. */
 .bn-block:has(> .react-renderer > [data-content-type='tabs']) {
   position: relative;
