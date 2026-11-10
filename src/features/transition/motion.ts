@@ -24,22 +24,3 @@ export function toAnimationTiming(
     fill: 'forwards',
   };
 }
-
-const alphaOf = (color: string) => {
-  if (color === 'transparent') return 0;
-  const match = /^rgba\((?:[^,]+,){3}\s*([\d.]+)\)$/.exec(color);
-  return match ? Number(match[1]) : 1;
-};
-
-// 요소 뒤에 비치는 불투명한 배경색. 덮어 그리는 층이 바탕과 같은 색을 갖게 한다.
-export function opaqueBackgroundBehind(element: Element): string {
-  for (
-    let current: Element | null = element;
-    current;
-    current = current.parentElement
-  ) {
-    const color = getComputedStyle(current).backgroundColor;
-    if (alphaOf(color) >= 1) return color;
-  }
-  return 'Canvas';
-}

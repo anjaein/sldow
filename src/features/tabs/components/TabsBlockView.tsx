@@ -10,11 +10,7 @@ import {
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { DocumentEditor } from '../../document/types';
-import {
-  opaqueBackgroundBehind,
-  shouldAnimate,
-  toAnimationTiming,
-} from '../../transition/motion';
+import { shouldAnimate, toAnimationTiming } from '../../transition/motion';
 import type { TransitionSetting } from '../../transition/transition';
 import {
   INSTANT_TRANSITION,
@@ -22,7 +18,7 @@ import {
   parseTransition,
   serializeTransition,
 } from '../../transition/transition';
-import type { LeavingPanel, TabInfo, TabsPlacement } from '../tabs';
+import type { TabInfo, TabsPlacement } from '../tabs';
 import {
   buildTabsCss,
   clampBarSize,
@@ -50,11 +46,19 @@ interface TabsBlockViewProps {
 
 type ResizeTarget = 'barSize' | 'height';
 
-// 부드러운 전환 하나. 전환 직전에 잰 묶음 높이와 이전 패널 높이를 함께 기억한다.
-interface PanelSwitch extends LeavingPanel {
+// 부드러운 전환 하나. 전환 직전에 잰 패널 묶음의 높이를 기억한다.
+interface PanelSwitch {
   fromHeight: number;
-  fromPanelHeight: number;
 }
+
+// 내용이 없는(content: 'none') 블록 중에도 글의 흐름에 속해 바로 바뀌는 것.
+// 탭과 패널은 틀일 뿐이라 그 안의 블록을 각각 따진다.
+const INSTANT_BLOCK_TYPES = new Set([
+  'divider',
+  'pageBreak',
+  'tabs',
+  'tabPanel',
+]);
 
 interface Box {
   x: number;
@@ -111,7 +115,7 @@ export default function TabsBlockView({
 
   // 어느 탭이 열려 있는지는 화면 상태라 저장하지 않는다. null이면 첫 탭이다.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState<PanelSwitch | null>(null);
+  const [switching, setSwitching] = useState<PanelSwitch | null>(null);
   const [order, setOrder] = useState<string[] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<Partial<
@@ -133,76 +137,74 @@ export default function TabsBlockView({
     : (tabs[0]?.id ?? null);
   const fitsContent = (resizing?.height ?? height) === 0;
 
-  // 전환 직전의 모습을 잰다. 즉시 전환이거나 잴 수 없으면 null이다.
+  // 전환 직전의 높이를 잰다. 즉시 전환이거나 잴 수 없으면 null이다.
+  // 전환 중에 다시 누르면 움직이던 높이 그대로에서 이어 간다.
   const measureSwitch = (fromId: string | null): PanelSwitch | null => {
     if (!fromId || !shouldAnimate(transition)) return null;
     const group = findGroup(barRef.current);
-    const panel = group && findPanel(group, fromId);
-    if (!group || !panel || panel.getClientRects().length === 0) return null;
-    const groupRect = group.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    return {
-      id: fromId,
-      // 절대 위치는 묶음의 안쪽 테두리와 스크롤된 내용 기준이다.
-      top: panelRect.top - groupRect.top - group.clientTop + group.scrollTop,
-      left:
-        panelRect.left - groupRect.left - group.clientLeft + group.scrollLeft,
-      width: panelRect.width,
-      // 전환 중에 다시 누르면 움직이던 높이 그대로에서 이어 간다.
-      fromHeight: groupRect.height,
-      fromPanelHeight: panelRect.height,
-    };
+    if (!group || group.getClientRects().length === 0) return null;
+    return { fromHeight: group.getBoundingClientRect().height };
   };
 
   const show = (id: string) => {
     if (id === activeId) return;
     const next = measureSwitch(activeId);
     indicatorState.current.slide = next !== null;
-    setLeaving(next);
+    setSwitching(next);
     setSelectedId(id);
   };
 
-  // 부드러운 전환: 이전 패널은 불투명하게 깔아 두고 새 패널을 바탕색과 함께 서서히 덮는다.
-  // 패널 묶음의 높이도 같은 시간과 곡선으로 이전 높이에서 새 높이로 옮긴다.
+  // 글이 있는 블록(문단, 제목, 목록, 인용, 코드, 표 등)은 흐리게 바뀌면 눈이 피로해 바로 바꾼다.
+  // 이미지·디자인처럼 글이 없는 블록만 서서히 나타난다.
+  const fadesIn = (type: string) => {
+    const spec = (
+      editor.schema.blockSchema as Record<string, { content: string }>
+    )[type];
+    return (
+      spec !== undefined &&
+      spec.content === 'none' &&
+      !INSTANT_BLOCK_TYPES.has(type)
+    );
+  };
+
+  // 부드러운 전환: 이전 패널은 바로 사라지고 새 패널의 글도 바로 보인다.
+  // 글이 없는 블록만 서서히 나타나고, 패널 묶음의 높이는 같은 시간과 곡선으로 옮겨 간다.
   const startSwitch = useEffectEvent((current: PanelSwitch) => {
     const group = findGroup(barRef.current);
     const entering = activeId && group && findPanel(group, activeId);
     const animations: Animation[] = [];
     const timing = toAnimationTiming(transition);
     if (group && entering) {
-      if (fitsContent) {
+      const toHeight = group.getBoundingClientRect().height;
+      if (fitsContent && Math.abs(toHeight - current.fromHeight) >= 0.5) {
         // 묶음은 flex 항목이라 height만으로는 크기가 정해지지 않는다.
         // 최소·최대 높이를 함께 움직이면 막대 위치와 관계없이 높이가 고정된다.
-        const toHeight = group.getBoundingClientRect().height;
+        // 넘치는 내용은 그동안 잘라 낸다.
         const fixed = (value: number) => ({
           minHeight: `${value}px`,
           maxHeight: `${value}px`,
+          overflow: 'hidden',
         });
         animations.push(
           group.animate([fixed(current.fromHeight), fixed(toHeight)], timing),
         );
       }
-      // 새 패널이 이전 패널을 끝까지 덮도록 그동안은 이전 패널 높이만큼 늘인다.
-      const cover = {
-        minHeight: `${current.fromPanelHeight}px`,
-        backgroundColor: opaqueBackgroundBehind(group),
-      };
-      animations.push(
-        entering.animate(
-          [
-            { ...cover, opacity: 0 },
-            { ...cover, opacity: 1 },
-          ],
-          timing,
-        ),
-      );
+      entering
+        .querySelectorAll<HTMLElement>('[data-content-type]')
+        .forEach((content) => {
+          if (fadesIn(content.dataset.contentType ?? '')) {
+            animations.push(
+              content.animate([{ opacity: 0 }, { opacity: 1 }], timing),
+            );
+          }
+        });
     }
 
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
-      setLeaving((latest) => (latest === current ? null : latest));
+      setSwitching((latest) => (latest === current ? null : latest));
     };
     Promise.all(animations.map((animation) => animation.finished)).then(
       finish,
@@ -217,8 +219,8 @@ export default function TabsBlockView({
     };
   });
   useLayoutEffect(() => {
-    if (leaving) return startSwitch(leaving);
-  }, [leaving]);
+    if (switching) return startSwitch(switching);
+  }, [switching]);
 
   // 열린 탭 표시. 부드러운 전환에서는 이전 탭 자리에서 새 탭으로 미끄러진다.
   const placeIndicator = useEffectEvent(() => {
@@ -461,7 +463,6 @@ export default function TabsBlockView({
     barSize: resizing?.barSize ?? barSize,
     height: resizing?.height ?? height,
     activeId,
-    leaving,
   });
 
   return (

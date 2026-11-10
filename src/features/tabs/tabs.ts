@@ -133,21 +133,12 @@ export function moveTab(
   });
 }
 
-// 부드러운 전환 동안 아래에 깔려 있는 이전 패널. 위치는 전환 직전에 잰 값(묶음 기준 px)이다.
-export interface LeavingPanel {
-  id: string;
-  top: number;
-  left: number;
-  width: number;
-}
-
 interface TabsCssOptions {
   tabsId: string;
   placement: TabsPlacement;
   barSize: number;
   height: number;
   activeId: string | null;
-  leaving: LeavingPanel | null;
 }
 
 const FLEX_DIRECTION: Record<TabsPlacement, string> = {
@@ -159,19 +150,17 @@ const FLEX_DIRECTION: Record<TabsPlacement, string> = {
 
 // 어느 탭이 보이는지는 저장하지 않는 화면 상태다. 문서 노드를 건드리면 저장이 일어나고
 // ProseMirror가 DOM 변경을 되돌리므로, 블록별 스타일로만 패널을 숨긴다.
-// 움직임(투명도·높이)은 DOM을 바꾸지 않는 Web Animations로 따로 건다.
+// 전환의 움직임(높이·투명도)은 DOM을 바꾸지 않는 Web Animations로 따로 건다.
 export function buildTabsCss({
   tabsId,
   placement,
   barSize,
   height,
   activeId,
-  leaving,
 }: TabsCssOptions): string {
   const block = `.bn-block[data-id="${CSS.escape(tabsId)}"]`;
   const group = `${block} > .bn-block-group`;
   const panel = `${group} > .bn-block-outer`;
-  const panelWithId = (id: string) => `${panel}[data-id="${CSS.escape(id)}"]`;
   const barBasis =
     barSize > 0 ? `${barSize}px` : isVerticalBar(placement) ? '9rem' : 'auto';
 
@@ -188,22 +177,9 @@ export function buildTabsCss({
   }
 
   if (activeId) {
-    const shown = [activeId, leaving?.id ?? null].filter((id) => id !== null);
-    const hidden = shown
-      .map((id) => `:not([data-id="${CSS.escape(id)}"])`)
-      .join('');
-    rules.push(`${panel}${hidden} { display: none; }`);
-  }
-
-  if (activeId && leaving) {
-    // 이전 패널은 자리를 그대로 지키며 불투명하게 남고, 새 패널이 그 위에 덮인다.
-    // 둘이 함께 반투명해지지 않으므로 사이로 배경이 비치지 않는다.
     rules.push(
-      `${panelWithId(leaving.id)} { position: absolute; top: ${leaving.top}px; left: ${leaving.left}px; width: ${leaving.width}px; margin: 0; pointer-events: none; }`,
-      `${panelWithId(activeId)} { position: relative; z-index: 1; }`,
+      `${panel}:not([data-id="${CSS.escape(activeId)}"]) { display: none; }`,
     );
-    // 높이가 내용에 맞춰질 때는 높이를 움직이므로, 넘치는 쪽을 잘라 낸다.
-    if (height === 0) rules.push(`${group} { overflow: hidden; }`);
   }
 
   return rules.join('\n');
