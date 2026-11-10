@@ -1,7 +1,10 @@
 // 블록 손잡이를 누르면 노션처럼 그 블록을 고르고 블록 메뉴를 연다.
 // BlockNote의 기본 손잡이(DragHandleButton)와 같고, 클릭 시 선택과 메뉴의 열림 제어만 더했다.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type {
+  DragEvent as ReactDragEvent,
+  MouseEvent as ReactMouseEvent,
+} from 'react';
 import { getNodeById } from '@blocknote/core';
 import { SideMenuExtension } from '@blocknote/core/extensions';
 import {
@@ -17,6 +20,11 @@ import {
   type SideMenuProps,
 } from '@blocknote/react';
 import { Menu } from '@mantine/core';
+import {
+  clearRangeDragPreview,
+  dragBlockRange,
+  draggedBlockRange,
+} from '../blockDrag';
 import { selectBlockFromHandle } from '../blockSelectionExtension';
 
 export default function BlockSideMenu(props: SideMenuProps) {
@@ -114,6 +122,22 @@ function BlockDragHandle() {
     }
   };
 
+  // 여러 블록을 고른 채 그중 한 블록의 손잡이를 끌면 고른 블록 전체를 끈다.
+  const onDragStart = (event: ReactDragEvent) => {
+    const view = editor.prosemirrorView;
+    const info = getNodeById(block.id, view.state.doc);
+    const range = info ? draggedBlockRange(view, info.posBeforeNode) : null;
+    sideMenu.blockDragStart(event, block);
+    if (range) {
+      dragBlockRange(editor, event.dataTransfer, range);
+    }
+  };
+
+  const onDragEnd = () => {
+    clearRangeDragPreview();
+    sideMenu.blockDragEnd();
+  };
+
   return (
     <Menu
       opened={opened}
@@ -129,8 +153,8 @@ function BlockDragHandle() {
           label={dict.side_menu.drag_handle_label}
           draggable={true}
           onClick={onClick}
-          onDragStart={(event) => sideMenu.blockDragStart(event, block)}
-          onDragEnd={() => sideMenu.blockDragEnd()}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
           className="bn-button"
           icon={<DragIcon />}
         />

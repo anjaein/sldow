@@ -417,6 +417,18 @@
   pointer-events: none;
 }
 
+/* 끌어 고르기 사각형. 위치와 크기는 끄는 동안 스크립트가 정한다. */
+.marquee-selection {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  border: 1px solid rgb(35 131 226 / 45%);
+  border-radius: 2px;
+  background: rgb(35 131 226 / 10%);
+  pointer-events: none;
+}
+
 /* 여러 블록을 고르면 브라우저의 글 선택 색이 겹쳐 보이므로 감춘다 */
 .block-selected ::selection {
   background: transparent;
