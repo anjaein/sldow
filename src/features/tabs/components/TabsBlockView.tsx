@@ -11,12 +11,14 @@ import {
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { DocumentEditor } from '../../document/types';
 import { shouldAnimate, toAnimationTiming } from '../../transition/motion';
+import type { CodeMorph, CodeSnapshot } from '../../transition/codeMorph';
 import type { TransitionSetting } from '../../transition/transition';
 import {
   INSTANT_TRANSITION,
   getTransitionDuration,
   parseTransition,
   serializeTransition,
+  toCssTiming,
 } from '../../transition/transition';
 import type { TabInfo, TabsPlacement } from '../tabs';
 import {
@@ -30,6 +32,7 @@ import {
   panelAtSelection,
   readTabs,
 } from '../tabs';
+import { morphPanelCode, snapshotPanelCode } from '../tabsCodeMorph';
 import TabItem from './TabItem';
 import TabsSettingsPopover from './TabsSettingsPopover';
 
@@ -46,9 +49,10 @@ interface TabsBlockViewProps {
 
 type ResizeTarget = 'barSize' | 'height';
 
-// 부드러운 전환 하나. 전환 직전에 잰 패널 묶음의 높이를 기억한다.
+// 부드러운 전환 하나. 전환 직전에 잰 패널 묶음의 높이와 이전 패널의 코드 모습을 기억한다.
 interface PanelSwitch {
   fromHeight: number;
+  code: CodeSnapshot[] | null;
 }
 
 // 내용이 없는(content: 'none') 블록 중에도 글의 흐름에 속해 바로 바뀌는 것.
@@ -122,6 +126,7 @@ export default function TabsBlockView({
     Record<ResizeTarget, number>
   > | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const morphRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);
   const indicatorState = useRef<{
@@ -143,7 +148,14 @@ export default function TabsBlockView({
     if (!fromId || !shouldAnimate(transition)) return null;
     const group = findGroup(barRef.current);
     if (!group || group.getClientRects().length === 0) return null;
-    return { fromHeight: group.getBoundingClientRect().height };
+    const panel = findPanel(group, fromId);
+    return {
+      fromHeight: group.getBoundingClientRect().height,
+      code:
+        panel && morphRef.current
+          ? snapshotPanelCode(panel, morphRef.current)
+          : null,
+    };
   };
 
   const show = (id: string) => {
@@ -168,13 +180,22 @@ export default function TabsBlockView({
   };
 
   // 부드러운 전환: 이전 패널은 바로 사라지고 새 패널의 글도 바로 보인다.
-  // 글이 없는 블록만 서서히 나타나고, 패널 묶음의 높이는 같은 시간과 곡선으로 옮겨 간다.
+  // 짝이 맞는 코드 블록은 모핑하고, 글이 없는 블록만 서서히 나타나며, 패널 묶음의 높이는 같은 시간과 곡선으로 옮겨 간다.
   const startSwitch = useEffectEvent((current: PanelSwitch) => {
     const group = findGroup(barRef.current);
     const entering = activeId && group && findPanel(group, activeId);
     const animations: Animation[] = [];
     const timing = toAnimationTiming(transition);
+    let morph: CodeMorph | null = null;
     if (group && entering) {
+      // 코드 블록의 짝이 맞으면 글처럼 바로 바꾸는 대신 토큰 단위로 모핑한다.
+      if (current.code && morphRef.current) {
+        morph = morphPanelCode(current.code, entering, morphRef.current, {
+          duration: getTransitionDuration(transition),
+          easing: toCssTiming(transition),
+        });
+        if (morph) animations.push(...morph.animations);
+      }
       const toHeight = group.getBoundingClientRect().height;
       if (fitsContent && Math.abs(toHeight - current.fromHeight) >= 0.5) {
         // 묶음은 flex 항목이라 height만으로는 크기가 정해지지 않는다.
@@ -216,6 +237,7 @@ export default function TabsBlockView({
       done = true;
       clearTimeout(timer);
       animations.forEach((animation) => animation.cancel());
+      morph?.cancel();
     };
   });
   useLayoutEffect(() => {
@@ -529,6 +551,8 @@ export default function TabsBlockView({
           onDoubleClick={() => updateProps({ barSize: 0 })}
         />
       </div>
+      {/* 코드 모핑의 임시 층. 블록 전체 기준으로 놓이며 내용은 모핑 코드가 직접 채운다. */}
+      <div ref={morphRef} className="tabs-morph-layer" aria-hidden="true" />
       <button
         type="button"
         tabIndex={-1}
